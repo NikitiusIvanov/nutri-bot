@@ -20,7 +20,7 @@ Handle cases where no food is detected or the analysis fails.
 * Display the recognized nutritional information in a user-friendly format.
 Offer options to edit or save the data for future reference.
 
-### ✅ Additional Features
+### ✅ Additional Features:
 * Allow users to set daily calorie goals.
 * Provide statistics on consumed calories and macronutrients (protein, carbs, fat).
 
