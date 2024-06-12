@@ -25,7 +25,7 @@ Offer options to edit or save the data for future reference.
 * Provide statistics on consumed calories and macronutrients (protein, carbs, fat).
 
 ## 🫀 Technical Stack:
-* asyncio - Telegram bot API async wrapper
+* aiogram - async wrapper telegram bot API
 * google.generativeai - Google API for summarizing with Google's LLM model Gemini
 * plotly - statistics visualisation
 * PythonAnywhere - Deployment
