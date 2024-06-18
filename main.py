@@ -1,17 +1,21 @@
 import io
-import sys
 import os
-import datetime
+import sys
 import json
+import datetime
+
 import numpy as np
 import pandas as pd
-import asyncio
-import logging
-import google.generativeai as genai
+
 import gspread
+import google.generativeai as genai
 from vertexai.generative_models import GenerativeModel, Image
 
+from aiohttp import web
+
 from aiogram import Bot, Dispatcher, Router
+from aiogram.client.default import DefaultBotProperties
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiogram.enums import ParseMode, ChatAction
 from aiogram.filters import CommandStart, Filter
 from aiogram import F
@@ -31,48 +35,54 @@ from aiogram.utils.keyboard import (
     ReplyKeyboardBuilder,
     InlineKeyboardBuilder
 )
-
 from aiogram.client.session.aiohttp import AiohttpSession
 
-import logging
-from plotly.subplots import make_subplots
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+import logging
+
+# get the credentials from env vars
+BOT_TOKEN = os.getenv('BOT_TOKEN')
+BASE_WEBHOOK_URL = os.getenv('BASE_WEBHOOK_URL')
+GOOGLE_AI_API_KEY = os.getenv('GOOGLE_AI_API_KEY')
+GC_CREDENTIALS_FILE = os.getenv('GC_CREDENTIALS')
+USERS_SPREADSHEET_ID = os.getenv('USERS_SPREADSHEET_ID')
+MEALS_SPREADSHEET_ID = os.getenv('MEALS_SPREADSHEET_ID')
+
+# Webserver settings
+WEB_SERVER_HOST = "0.0.0.0"
+
+# Port for incoming request
+WEB_SERVER_PORT = 8080
+
+# Path to webhook route, on which Telegram will send requests
+WEBHOOK_PATH = "/webhook"
 
 logger = logging.getLogger(__name__)
-# logging.basicConfig(level=logging.DEBUG)
 
 with open('credentials.json', 'r') as file:
   	credentials = json.load(file)
 logger.debug(f'credentials {credentials}')
       
 ####################### google AI API settings #######################    
-genai.configure(api_key=credentials['google_ai_api_key'])
+genai.configure(api_key=GOOGLE_AI_API_KEY)
 model = GenerativeModel("gemini-1.5-pro-preview-0514")
 generation_config = {
     'temperature': 0,
 }
 
 ####################### google spreadsheet API settings #######################
-gc_credentials_file = credentials['gc_credentials_file']
+
 # Open the Google Sheet using the credentials file
-gc = gspread.service_account(filename=gc_credentials_file)
-# Specify the spreadsheet ID 
-users_spreadsheet_id = credentials['users_spreadsheet_id']
-meals_spreadsheet_id = credentials['meals_spreadsheet_id']
+gc = gspread.service_account(filename=GC_CREDENTIALS_FILE)
+
 # Open the worksheet by sheet name or index
-users_worksheet = gc.open_by_key(users_spreadsheet_id).sheet1
-meals_worksheet = gc.open_by_key(meals_spreadsheet_id).sheet1
+users_worksheet = gc.open_by_key(USERS_SPREADSHEET_ID).sheet1
+meals_worksheet = gc.open_by_key(MEALS_SPREADSHEET_ID).sheet1
 
 ####################### Telegram bot API settings #######################
-BOT_TOKEN = credentials['tg_bot_api_key']
 
-# setting for pythonewerywhere
-PROXY = 'http://proxy.server:3128'
-
-PHOTO_FOLDER = 'photos'
-
-# Create the folder if it doesn't exist
-os.makedirs(PHOTO_FOLDER, exist_ok=True)
 
 ####################### Set prompt for tasks #######################
 prompt = """
@@ -183,6 +193,16 @@ def response_to_dict(
 
 
 ####################### Bot logic #######################
+# Set the webhook for recieving updates in your url wia HTTPS POST with JSONs
+async def on_startup(bot: Bot) -> None:
+    # If you have a self-signed SSL certificate, then you will need to send a public
+    # certificate to Telegram, for this case we'll use google cloud run service so
+    # it not required to send sertificates
+    await bot.set_webhook(
+        f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}",
+    )
+
+
 class MyFilter(Filter):
     def __init__(self, my_text: str) -> None:
         self.my_text = my_text
@@ -753,18 +773,43 @@ async def write_nutrition_to_db(callback_query: CallbackQuery, state: FSMContext
         )
 
 
-async def main() -> None:
-    # Initialize Bot instance with a default parse mode which will be passed to all API calls
-    # session = AiohttpSession(proxy=PROXY)
-    bot = Bot(
-        credentials['tg_bot_api_key'], 
-        # session=session
-    )
-    # And the run events dispatching
+def main() -> None:
+    # Dispatcher is a root router
     dp = Dispatcher()
+    # ... and all other routers should be attached to Dispatcher
     dp.include_router(form_router)
-    await dp.start_polling(bot)
+
+    # Register startup hook to initialize webhook
+    dp.startup.register(on_startup)
+
+    # Initialize Bot instance with default bot properties 
+    # which will be passed to all API calls
+    bot = Bot(
+        token=BOT_TOKEN, 
+        default=DefaultBotProperties()
+    )
+
+    # Create aiohttp.web.Application instance
+    app = web.Application()
+
+    # Create an instance of request handler,
+    # aiogram has few implementations for different cases of usage
+    # In this example we use SimpleRequestHandler which is designed to handle simple cases
+    webhook_requests_handler = SimpleRequestHandler(
+        dispatcher=dp,
+        bot=bot,
+    )
+
+    # Register webhook handler on application
+    webhook_requests_handler.register(app, path=WEBHOOK_PATH)
+
+    # Mount dispatcher startup and shutdown hooks to aiohttp application
+    setup_application(app, dp, bot=bot)
+
+    # And finally start webserver
+    web.run_app(app, host=WEB_SERVER_HOST, port=WEB_SERVER_PORT)
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-    asyncio.run(main())
+    main()
