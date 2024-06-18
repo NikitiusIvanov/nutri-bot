@@ -1,16 +1,14 @@
 import io
-import os
 import sys
-import json
+import os
 import datetime
-
+import json
 import numpy as np
 import pandas as pd
-
-import gspread
+import logging
 import google.generativeai as genai
+import gspread
 from vertexai.generative_models import GenerativeModel, Image
-
 from aiohttp import web
 
 from aiogram import Bot, Dispatcher, Router
@@ -35,11 +33,10 @@ from aiogram.utils.keyboard import (
     ReplyKeyboardBuilder,
     InlineKeyboardBuilder
 )
+
 from aiogram.client.session.aiohttp import AiohttpSession
-
-import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-
+import plotly.graph_objects as go
 import logging
 
 # get the credentials from env vars
@@ -58,12 +55,6 @@ WEB_SERVER_PORT = 8080
 
 # Path to webhook route, on which Telegram will send requests
 WEBHOOK_PATH = "/webhook"
-
-logger = logging.getLogger(__name__)
-
-with open('credentials.json', 'r') as file:
-  	credentials = json.load(file)
-logger.debug(f'credentials {credentials}')
       
 ####################### google AI API settings #######################    
 genai.configure(api_key=GOOGLE_AI_API_KEY)
