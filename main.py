@@ -66,7 +66,8 @@ generation_config = {
 ####################### google spreadsheet API settings #######################
 
 # Open the Google Sheet using the credentials file
-gc = gspread.service_account(filename=GC_CREDENTIALS_FILE)
+gc_credentials_dict = json.loads(GC_CREDENTIALS_FILE)
+gc = gspread.service_account_from_dict(gc_credentials_dict)
 
 # Open the worksheet by sheet name or index
 users_worksheet = gc.open_by_key(USERS_SPREADSHEET_ID).sheet1
