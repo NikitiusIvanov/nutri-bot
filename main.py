@@ -293,7 +293,6 @@ async def get_today_statistics(message: Message, state: FSMContext):
     users_all_values.replace('', np.nan, inplace=True)
     user_id = str(message.from_user.id)
 
-    logger.debug(f'user_id: {user_id}')
     daily_calories_goal = daily_calories_goal = float(
         users_all_values
         .query('user_id == @user_id')
@@ -541,39 +540,30 @@ async def handle_photo(message: Message, state: FSMContext):
         "⚙️ It in processing, please wait your results",
         reply_markup=ReplyKeyboardRemove()
     )
-    logger.debug('send chat typing')
     await message.bot.send_chat_action(
         message.chat.id, 
         action=ChatAction.TYPING
     )
 
-    logger.debug('get photo id')
     # Get the largest available photo size
     photo_file_id = message.photo[-1].file_id
     
     # Download the photo as bytes
-    logger.debug('load photo as bytes')
     bytes = io.BytesIO()
     photo_file = await message.bot.download(
         photo_file_id, 
         destination=bytes
     )
 
-    logger.debug('create Image')
     img = Image.from_bytes(photo_file.read())
 
     request_parts = [prompt, img]
-
-    logger.debug('get response from Gemini')
     
     response = model.generate_content(
         request_parts,
         generation_config=generation_config
     )
-    logger.debug(f'response text: {response.text}')
-    logger.debug('convert response to dict')
     result = response_to_dict(response)
-    logger.debug(f'result: {result}')
 
     if result == 'no food' or result == 'not correct result':
         await message.answer(
@@ -587,7 +577,6 @@ async def handle_photo(message: Message, state: FSMContext):
         nutrition_facts = result
 
         text=text_from_nutrition_facts(nutrition_facts=nutrition_facts)
-        logger.debug(f'text: {text}')
         await state.update_data(nutrition_facts=nutrition_facts)
         await state.update_data(chat_id=message.chat.id)
         await state.update_data(username=message.chat.username)
@@ -595,7 +584,6 @@ async def handle_photo(message: Message, state: FSMContext):
         await state.update_data(last_name=message.from_user.last_name)
         await state.update_data(user_id=message.from_user.id)
         reply_markup = build_inline_keyboard()
-        logger.debug(f'markup created')
         await message.answer(
             text=text,
             parse_mode=ParseMode.MARKDOWN_V2,
@@ -686,7 +674,6 @@ async def apply_corrections(callback_query: CallbackQuery, state: FSMContext):
                 text='Please enter a number'
             )
             
-    logger.debug(f'key_to_edit {key_to_edit}, new_value: {new_value}')
     nutrition_facts[key_to_edit] = data['new_value']
     await state.update_data(nutrition_facts=nutrition_facts)
 
@@ -719,9 +706,8 @@ async def write_nutrition_to_db(callback_query: CallbackQuery, state: FSMContext
         nutrition_facts['carb'],
         nutrition_facts['fat'],     
     ]
-    logger.debug(f'row to append {row}')
+
     response = meals_worksheet.append_row(row, value_input_option="RAW")
-    logger.debug(f'response {response}')
 
     # check_user_exist(message=callback_query.message)
     users_all_values = users_worksheet.get_all_values()
