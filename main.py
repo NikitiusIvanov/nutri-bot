@@ -982,14 +982,14 @@ class DatabaseMiddleware(BaseMiddleware):
             data['conn'] = conn
             return await handler(event, data)
 
-async def main() -> None:
+def main() -> None:
     # Dispatcher is a root router
     dp = Dispatcher()
 
     dp.include_router(form_router)
 
     # Create the connection pool
-    pool = await asyncpg.create_pool(**DB_CONFIG)
+    pool = asyncpg.create_pool(**DB_CONFIG)
 
     dp['pool'] = pool
 
