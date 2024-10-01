@@ -28,3 +28,4 @@ pytz==2024.1
 requests==2.32.3
 vertexai==1.49.0
 yarl==1.9.4
+asyncpg==0.29.0

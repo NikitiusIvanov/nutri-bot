@@ -38,14 +38,26 @@ from aiogram.client.session.aiohttp import AiohttpSession
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 import logging
+import asyncpg
+
+# get db credentials
+# Db Configuration
+POSTGRES_USER=os.getenv('POSTGRES_USER')
+POSTGRES_DB=os.getenv('POSTGRES_DB')
+POSTGRES_PASSWORD=os.getenv('POSTGRES_PASSWORD')
+POSTGRES_HOST=os.getenv('POSTGRES_HOST')
+
+DB_CONFIG = {
+    "host": POSTGRES_HOST,
+    "database": POSTGRES_DB,
+    "user": POSTGRES_USER,
+    "password": POSTGRES_DB
+}
 
 # get the credentials from env vars
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 BASE_WEBHOOK_URL = os.getenv('BASE_WEBHOOK_URL')
 GOOGLE_AI_API_KEY = os.getenv('GOOGLE_AI_API_KEY')
-GC_CREDENTIALS_FILE = os.getenv('GC_CREDENTIALS')
-USERS_SPREADSHEET_ID = os.getenv('USERS_SPREADSHEET_ID')
-MEALS_SPREADSHEET_ID = os.getenv('MEALS_SPREADSHEET_ID')
 
 # Webserver settings
 WEB_SERVER_HOST = "0.0.0.0"
@@ -63,21 +75,8 @@ generation_config = {
     'temperature': 0,
 }
 
-####################### google spreadsheet API settings #######################
-
-# Open the Google Sheet using the credentials file
-gc_credentials_dict = json.loads(GC_CREDENTIALS_FILE)
-gc = gspread.service_account_from_dict(gc_credentials_dict)
-
-# Open the worksheet by sheet name or index
-users_worksheet = gc.open_by_key(USERS_SPREADSHEET_ID).sheet1
-meals_worksheet = gc.open_by_key(MEALS_SPREADSHEET_ID).sheet1
-
-####################### Telegram bot API settings #######################
-
-
 ####################### Set prompt for tasks #######################
-prompt = """
+PROMPT = """
 You are a helpful AI assistant that helps people collect data about their diets 
 by food photos that their sending to you.
 Recognize food in this picture and
@@ -105,14 +104,189 @@ protein: 24, 25
 """
 
 ####################### Data processing #######################
-def check_user_exist(message: Message):
-    first_name = message.from_user.first_name
+DATA_PROCESSING_CHAPTER = None
+async def sql_check_if_user_exists(
+        conn: asyncpg.connection.Connection, 
+        user_id: int,
+):
+    """Checks if a user with the given user_id exists in the database.
 
-    users_all_values = users_worksheet.get_all_values()
+    Args:
+        con: An asyncpg connection.
+        user_id: The user ID to check.
 
-    users_all_values = pd.DataFrame(users_all_values[1:], columns=users_all_values[0])
+    Returns:
+        True if the user exists, False otherwise.
+    """
 
-    if str(message.from_user.id) not in users_all_values['user_id'].unique():
+    exists = await conn.fetchrow(
+        "SELECT EXISTS (SELECT 1 FROM users WHERE user_id = $1)", 
+        user_id
+    )
+
+    return exists[0]
+
+
+async def sql_get_latest_daily_calories_goal(
+    conn: asyncpg.connection.Connection, 
+    user_id: int,
+):
+    result = await conn.fetchrow(
+        """
+        SELECT daily_calories_goal
+        FROM users
+        WHERE user_id = $1
+        ORDER BY timestamp DESC
+        LIMIT 1
+        """, 
+        user_id
+    )
+
+    return result[0]
+
+
+async def sql_write_new_user(
+    conn: asyncpg.connection.Connection, 
+    user_row: dict
+):
+    """
+    """
+    await conn.execute(
+        """
+        INSERT INTO users (
+            first_name,
+            last_name,
+            user_name,
+            user_id,
+            chat_id,
+            height,
+            weight,
+            age,
+            daily_calories_goal
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+        )
+        """,
+        user_row['first_name'],
+        user_row['last_name'],
+        user_row['user_name'],
+        user_row['user_id'],
+        user_row['chat_id'],
+        user_row['height'],
+        user_row['weight'],
+        user_row['age'],
+        user_row['daily_calories_goal']
+    )
+
+
+async def sql_write_nutrition(
+    conn: asyncpg.connection.Connection, 
+    meal_row: dict
+):
+    """
+    """
+    await conn.execute(
+        """
+        INSERT INTO meals (
+            user_id,
+            dish_name,
+            calories,
+            mass,
+            protein,
+            carb,
+            fat 
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8
+        )
+        """,
+        meal_row['user_id'],
+        meal_row['dish_name'],
+        meal_row['calories'],
+        meal_row['mass'],
+        meal_row['protein'],
+        meal_row['carb'],
+        meal_row['fat']
+    )
+
+
+async def sql_check_daily_goal_exists(
+    conn: asyncpg.connection.Connection, 
+    user_id: int,
+) -> bool:
+    query = """
+    SELECT EXISTS (
+        SELECT 1 FROM users 
+        WHERE user_id = $1
+        and daily_calories_goal is not null
+    )
+    """
+    result = await conn.fetchrow(query, user_id)
+    return result[0]
+
+
+async def sql_get_user_todays_statistics(
+    conn: asyncpg.connection.Connection, 
+    user_id: int,
+):
+    query_daily_goal = (
+        """
+        SELECT daily_calories_goal
+        FROM users
+        WHERE user_id = $1
+        ORDER BY timestamp DESC
+        LIMIT 1
+        """
+    )
+
+    query_todays_statitics = (
+        """
+        SELECT 
+            SUM(calories),
+            SUM(protein),
+            SUM(carb),
+            SUM(fat)
+        FROM meals
+        WHERE timestamp::date = CURRENT_DATE
+        AND user_id = $1
+        GROUP BY user_id;
+        """
+    )
+    
+    daily_calories_goal_result = await conn.fetchrow(query_daily_goal, user_id)
+
+    todays_statitics_result = await conn.fetchrow(query_todays_statitics, user_id)
+
+    try: 
+        (
+            total_calories, 
+            total_protein, 
+            total_carb, 
+            total_fat
+        ) = todays_statitics_result
+
+        daily_calories_goal = daily_calories_goal_result[0]
+
+        return (
+            daily_calories_goal, 
+            total_calories, 
+            total_protein, 
+            total_carb, 
+            total_fat
+        )
+    except:
+        return None, None, None, None, None
+
+
+async def check_user_exist(
+    message: Message,
+    conn: asyncpg.connection.Connection
+):
+
+    is_user_exist = await sql_check_if_user_exists(conn, message.from_user.id)
+
+    if is_user_exist == False:
+        
+        first_name = message.from_user.first_name
 
         last_name = message.from_user.last_name
 
@@ -124,18 +298,26 @@ def check_user_exist(message: Message):
 
         chat_id = message.chat.id
 
-        row_to_write = [
-            timestamp, user_id, user_name, first_name, last_name, chat_id,
-            # height: None, 
-            # weight: None, 
-            # age: None, 
-            # daily_calories_goal: None
-        ]
+        height, weight, age, daily_calories_goal = None, None, None, None
 
-        users_worksheet.append_row(row_to_write)
+        await sql_write_new_user(
+            conn=conn, 
+            row_to_write={
+                'first_name': first_name,
+                'last_name': last_name,
+                'user_name': user_name,
+                'user_id': user_id,
+                'timestamp': timestamp,
+                'chat_id': chat_id,
+                'height': height,
+                'weight': weight,
+                'age': age,
+                'daily_calories_goal': daily_calories_goal,
+            }
+        )
 
 
-def response_to_dict(
+async def response_to_dict(
     response: str,
 ) -> dict[str, list[float]] | str:
     """
@@ -184,172 +366,7 @@ def response_to_dict(
     return result
 
 
-####################### Bot logic #######################
-# Set the webhook for recieving updates in your url wia HTTPS POST with JSONs
-async def on_startup(bot: Bot) -> None:
-    # If you have a self-signed SSL certificate, then you will need to send a public
-    # certificate to Telegram, for this case we'll use google cloud run service so
-    # it not required to send sertificates
-    await bot.set_webhook(
-        f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}",
-    )
-
-
-class MyFilter(Filter):
-    def __init__(self, my_text: str) -> None:
-        self.my_text = my_text
-
-    async def __call__(self, message: Message) -> bool:
-        return message.text == self.my_text
-
-
-class Form(StatesGroup):
-    chat_id = State()
-    photo_ok = State()
-    nutrition_ok = State()
-    nutrition_facts = State()
-    username = State()
-    first_name = State()
-    last_name = State()
-    user_id = State()
-    edit_request = State()
-    key_to_edit = State()
-    new_value = State()
-    edit_daily_goal = State()
-
-form_router = Router()
-
-def text_from_nutrition_facts(
-    nutrition_facts: dict[str, str|float],
-    is_saved: bool=False,
-) -> str:
-    text = (
-        '*Here is my estimation of the nutrition facts about your photo:*\n'
-        f'🍽 Dish name: *{nutrition_facts["dish_name"]}*\n'
-        f'🧮 Total calories: *{round(nutrition_facts["calories"], 2)}* kcal\n'
-        f'⚖️ Total mass: *{round(nutrition_facts["mass"], 2)}* g\n'
-        f'🍖 Proteins mass: *{round(nutrition_facts["protein"], 2)}* g\n'
-        f'🍬 Carbonhydrates mass: *{round(nutrition_facts["carb"], 2)}* g\n'
-        f'🧈 Fats mass: *{round(nutrition_facts["fat"], 2)}* g'
-    )
-    if is_saved == True:
-        text+=(
-            '\n✅ Saved to your meals'
-        )
-    
-    return text.replace('.', '\.')
-
-
-def build_inline_keyboard(is_saved: bool=False) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    if is_saved == False:
-        builder.row(
-                InlineKeyboardButton(text='Edit name', callback_data='name'),
-                InlineKeyboardButton(text='Edit mass', callback_data='mass')  
-        )
-        builder.row(
-            InlineKeyboardButton(text='Edit calories', callback_data='calories'),
-            InlineKeyboardButton(text='Edit proteins', callback_data='protein')
-        )
-        builder.row(
-            InlineKeyboardButton(text='Edit carbs', callback_data='carb'),
-            InlineKeyboardButton(text='Edit fats', callback_data='fat')
-        )
-    
-        builder.row(
-            InlineKeyboardButton(text='Save to my meals', callback_data='Save to my meals')
-        )
-    else:
-        builder.row()
-    return builder.as_markup()
-
-
-def build_reply_keyboard() -> ReplyKeyboardMarkup:
-    builder = ReplyKeyboardBuilder()
-    builder.row(
-        KeyboardButton(text='🍽 Recognize nutrition'),
-        KeyboardButton(text='📝 Edit My daily goal'),
-        KeyboardButton(text='📊 Get today\'s statisctics'),
-    )
-    builder.adjust(2)
-
-    return builder.as_markup()
-
-    
-@form_router.message(
-    F.text.endswith('Get today\'s statisctics')
-)
-async def get_today_statistics(message: Message, state: FSMContext):
-    await message.bot.send_chat_action(
-        message.chat.id, 
-        action=ChatAction.UPLOAD_DOCUMENT
-    )
-    users_all_values = users_worksheet.get_all_values()
-    users_all_values = pd.DataFrame(users_all_values[1:], columns=users_all_values[0])
-
-    meals_all_values = meals_worksheet.get_all_values()
-    meals_all_values = pd.DataFrame(meals_all_values[1:], columns=meals_all_values[0])
-
-    users_all_values.replace('', np.nan, inplace=True)
-    user_id = str(message.from_user.id)
-
-    daily_calories_goal = daily_calories_goal = float(
-        users_all_values
-        .query('user_id == @user_id')
-        ['daily_calories_goal']
-        .dropna()
-        .iloc[-1]
-    )
-
-    datetime_now = (
-        datetime
-        .datetime.now()
-        .astimezone()
-        .isoformat()
-        .split('.')[0]
-    )
-
-    todays_date = (
-        datetime_now
-        .split('T')[0]
-    )
-
-    user_todays_meals = (
-        meals_all_values
-        .query(
-            'timestamp.str.startswith(@todays_date)'
-            ' and user_id == @user_id'
-        )
-    )
-
-    total_calories = pd.to_numeric(user_todays_meals['calories']).sum()
-    total_protein = pd.to_numeric(user_todays_meals['protein']).sum()
-    total_carb = pd.to_numeric(user_todays_meals['carb']).sum()
-    total_fat = pd.to_numeric(user_todays_meals['fat']).sum()
-
-    fig = today_statistic_plotter(
-        daily_calories_goal,
-        total_calories,
-        total_protein,
-        total_carb,
-        total_fat
-    )
-
-    output_buffer = io.BytesIO()
-    fig.write_image(output_buffer, format="png")
-    output_buffer.seek(0)
-    file_bytes = output_buffer.read()
-    document = BufferedInputFile(
-        file=file_bytes, 
-        filename=f'{datetime_now}_statistics.png'
-    )
-
-    await message.reply_photo(
-        photo=document
-    )
-
-
-def today_statistic_plotter(
+async def today_statistic_plotter(
     daily_calories_goal,
     total_calories,
     total_protein,
@@ -431,6 +448,154 @@ def today_statistic_plotter(
     return fig
 
 
+####################### Bot logic #######################
+BOT_LOGIC_CHAPTER = None
+
+class Form(StatesGroup):
+    chat_id = State()
+    photo_ok = State()
+    nutrition_ok = State()
+    nutrition_facts = State()
+    username = State()
+    first_name = State()
+    last_name = State()
+    user_id = State()
+    edit_request = State()
+    key_to_edit = State()
+    new_value = State()
+    edit_daily_goal = State()
+
+form_router = Router()
+
+def text_from_nutrition_facts(
+    nutrition_facts: dict[str, str|float],
+    is_saved: bool=False,
+) -> str:
+    text = (
+        '*Here is my estimation of the nutrition facts about your photo:*\n'
+        f'🍽 Dish name: *{nutrition_facts["dish_name"]}*\n'
+        f'🧮 Total calories: *{round(nutrition_facts["calories"], 2)}* kcal\n'
+        f'⚖️ Total mass: *{round(nutrition_facts["mass"], 2)}* g\n'
+        f'🍖 Proteins mass: *{round(nutrition_facts["protein"], 2)}* g\n'
+        f'🍬 Carbonhydrates mass: *{round(nutrition_facts["carb"], 2)}* g\n'
+        f'🧈 Fats mass: *{round(nutrition_facts["fat"], 2)}* g'
+    )
+    if is_saved == True:
+        text+=(
+            '\n✅ Saved to your meals'
+        )
+    
+    return text.replace('.', '\.')
+
+
+def build_inline_keyboard(is_saved: bool=False) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    if is_saved == False:
+        builder.row(
+                InlineKeyboardButton(text='Edit name', callback_data='name'),
+                InlineKeyboardButton(text='Edit mass', callback_data='mass')  
+        )
+        builder.row(
+            InlineKeyboardButton(text='Edit calories', callback_data='calories'),
+            InlineKeyboardButton(text='Edit proteins', callback_data='protein')
+        )
+        builder.row(
+            InlineKeyboardButton(text='Edit carbs', callback_data='carb'),
+            InlineKeyboardButton(text='Edit fats', callback_data='fat')
+        )
+    
+        builder.row(
+            InlineKeyboardButton(text='Save to my meals', callback_data='Save to my meals')
+        )
+    else:
+        builder.row()
+    return builder.as_markup()
+
+
+def build_reply_keyboard() -> ReplyKeyboardMarkup:
+    builder = ReplyKeyboardBuilder()
+    builder.row(
+        KeyboardButton(text='🍽 Recognize nutrition'),
+        KeyboardButton(text='📝 Edit My daily goal'),
+        KeyboardButton(text='📊 Get today\'s statisctics'),
+    )
+    builder.adjust(2)
+
+    return builder.as_markup()
+
+    
+@form_router.message(
+    F.text.endswith('Get today\'s statisctics')
+)
+async def get_today_statistics(
+    message: Message, 
+    state: FSMContext,
+):
+    await message.bot.send_chat_action(
+        message.chat.id, 
+        action=ChatAction.UPLOAD_DOCUMENT
+    )
+
+    user_id = str(message.from_user.id)
+
+    data = await state.get_data()
+
+    conn = data['conn']
+
+    results = await sql_get_user_todays_statistics(
+        conn=conn, 
+        user_id=user_id
+    )
+
+    is_any_result_empty = any([x is None for x in results])
+
+    if not is_any_result_empty == False:
+        datetime_now = (
+            datetime
+            .datetime.now()
+            .astimezone()
+            .isoformat()
+            .split('.')[0]
+        )
+
+        (
+            daily_calories_goal,
+            total_calories,
+            total_protein,
+            total_carb,
+            total_fat
+        ) = results
+
+        fig = await today_statistic_plotter(
+            daily_calories_goal,
+            total_calories,
+            total_protein,
+            total_carb,
+            total_fat
+        )
+
+        output_buffer = io.BytesIO()
+        fig.write_image(output_buffer, format="png")
+
+        output_buffer.seek(0)
+
+        file_bytes = output_buffer.read()
+
+        document = BufferedInputFile(
+            file=file_bytes, 
+            filename=f'{datetime_now}_statistics.png'
+        )
+
+        await message.reply_photo(
+            photo=document
+        )
+
+    if is_any_result_empty == True:
+        await message.reply(
+            text='Unfortunately there is no data'
+        )
+
+
 @form_router.message(
     F.text.endswith('Edit My daily goal')
     |
@@ -443,34 +608,49 @@ async def edit_daily_goal_request(message: Message, state: FSMContext):
         text='Please set amount of kcall that You want to consume daily\n'
     )
 
+
 @form_router.message(Form.edit_daily_goal)
-async def edit_daily_goal(message: Message, state: FSMContext):
+async def edit_daily_goal(
+    message: Message, 
+    state: FSMContext
+):
+    data = await state.get_data()
+    conn = data['conn']
+
     daily_calories_goal = message.text
     
     try:
         daily_calories_goal = float(daily_calories_goal)
-    except:
-        # await state.set_state(Form.edit_daily_goal)
-        
+    except:        
         await message.answer(
             text='Amount of kcall to set as daily goal must be a number',
             reply_markup=build_reply_keyboard(),
         )
         return
+    
+    user_id = message.from_user.id
 
     first_name = message.from_user.first_name
 
-    users_all_values = users_worksheet.get_all_values()
+    latest_goal = await sql_get_latest_daily_calories_goal(
+        conn=conn, 
+        user_id=user_id
+    )
 
-    users_all_values = pd.DataFrame(users_all_values[1:], columns=users_all_values[0])
-
-    user_id = message.from_user.id
-
-    if user_id not in users_all_values['user_id'].unique():
-
-        user_name = message.from_user.username
+    if daily_calories_goal == float(latest_goal):
+        await message.answer(
+            f'Your daily goal setted in: {daily_calories_goal} kcall',
+            reply_markup=build_reply_keyboard()
+        )
+        return
+    
+    if daily_calories_goal == float(latest_goal):
+        
+        first_name = message.from_user.first_name
 
         last_name = message.from_user.last_name
+
+        user_name = message.from_user.username
 
         user_id = message.from_user.id
 
@@ -478,32 +658,34 @@ async def edit_daily_goal(message: Message, state: FSMContext):
 
         chat_id = message.chat.id
 
-        row_to_write = [
-            timestamp, user_id, user_name, first_name, last_name, chat_id,
-            None, None, None,
-            daily_calories_goal
-        ]
+        height, weight, age = None, None, None
 
-        users_worksheet.append_row(row_to_write)
-        
+        await sql_write_new_user(
+            conn=conn, 
+            row_to_write={
+                'first_name': first_name,
+                'last_name': last_name,
+                'user_name': user_name,
+                'user_id': user_id,
+                'timestamp': timestamp,
+                'chat_id': chat_id,
+                'height': height,
+                'weight': weight,
+                'age': age,
+                'daily_calories_goal': daily_calories_goal,
+            }
+        )
+
+
         await message.answer(
             f'Your daily goal setted in: {daily_calories_goal} kcall',
             reply_markup=build_reply_keyboard()
         )
         await state.clear()
-    else:
-        last_value = users_all_values.query('user_id == @user_id').iloc[-1, :]
-        row_to_write = list(last_value.values[:-1]) + [daily_calories_goal]
-        users_worksheet.append_row(row_to_write)
-        await message.answer(
-            text=f'Your daily goal setted in: {daily_calories_goal} kcall',
-            reply_markup=build_reply_keyboard,
-        )
-        await state.clear()
         
-  
+
 @form_router.message(CommandStart())
-async def welcome(message: Message):
+async def welcome(message: Message, state: FSMContext):
     first_name = message.from_user.first_name
 
     await message.answer(
@@ -516,8 +698,11 @@ async def welcome(message: Message):
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=build_reply_keyboard()
     )
+    
+    data = await state.get_data()
+    conn = data['conn']
 
-    check_user_exist(message=message)
+    await check_user_exist(message=message, conn=conn)
 
 
 @form_router.message(F.text.endswith('Recognize nutrition'))
@@ -557,7 +742,7 @@ async def handle_photo(message: Message, state: FSMContext):
 
     img = Image.from_bytes(photo_file.read())
 
-    request_parts = [prompt, img]
+    request_parts = [PROMPT, img]
     
     response = model.generate_content(
         request_parts,
@@ -577,13 +762,16 @@ async def handle_photo(message: Message, state: FSMContext):
         nutrition_facts = result
 
         text=text_from_nutrition_facts(nutrition_facts=nutrition_facts)
+        
         await state.update_data(nutrition_facts=nutrition_facts)
         await state.update_data(chat_id=message.chat.id)
         await state.update_data(username=message.chat.username)
         await state.update_data(first_name=message.from_user.first_name)
         await state.update_data(last_name=message.from_user.last_name)
         await state.update_data(user_id=message.from_user.id)
+        
         reply_markup = build_inline_keyboard()
+        
         await message.answer(
             text=text,
             parse_mode=ParseMode.MARKDOWN_V2,
@@ -617,7 +805,6 @@ async def edit_data(callback_query: CallbackQuery, state: FSMContext):
                 ),
                 parse_mode=ParseMode.MARKDOWN
             )
-
 
 
 @form_router.message(Form.edit_request)
@@ -688,8 +875,13 @@ async def apply_corrections(callback_query: CallbackQuery, state: FSMContext):
 
 
 @form_router.callback_query(F.data == 'Save to my meals')
-async def write_nutrition_to_db(callback_query: CallbackQuery, state: FSMContext):
+async def write_nutrition_to_db(
+    callback_query: CallbackQuery, 
+    state: FSMContext,
+):
     data = await state.get_data()
+    conn = data['conn']
+
     nutrition_facts = data['nutrition_facts']
     timestamp = datetime.datetime.now().astimezone().isoformat()
     username = data['username']
@@ -697,65 +889,102 @@ async def write_nutrition_to_db(callback_query: CallbackQuery, state: FSMContext
     last_name = data['last_name']
     user_id = data['user_id']
     chat_id = callback_query.message.chat.id
-    row = [
-        timestamp, chat_id, username,
-        nutrition_facts['dish_name'],
-        nutrition_facts['calories'],
-        nutrition_facts['mass'],
-        nutrition_facts['protein'],
-        nutrition_facts['carb'],
-        nutrition_facts['fat'],     
-    ]
+    meal_row = {
+        'timestamp': timestamp, 
+        'user_id': user_id, 
+        'dish_name': nutrition_facts['dish_name'],
+        'calories': nutrition_facts['calories'],
+        'mass': nutrition_facts['mass'],
+        'protein': nutrition_facts['protein'],
+        'carb': nutrition_facts['carb'],
+        'fat': nutrition_facts['fat'],     
+    }
 
-    response = meals_worksheet.append_row(row, value_input_option="RAW")
+    is_user_exist = await sql_check_if_user_exists(conn=conn, user_id=user_id)
 
-    # check_user_exist(message=callback_query.message)
-    users_all_values = users_worksheet.get_all_values()
-
-    users_all_values = pd.DataFrame(users_all_values[1:], columns=users_all_values[0])
-
-    if user_id not in users_all_values['user_id'].unique():
-
-        user_id = data['user_id']
+    if is_user_exist == False:
 
         timestamp = datetime.datetime.now().astimezone().isoformat()
 
-        row_to_write = [
-            timestamp, user_id, username, 
-            first_name, 
-            last_name, 
-            chat_id,
-            # height: None, 
-            # weight: None, 
-            # age: None, 
-            # daily_calories_goal: None
-        ]
+        height, weight, age, daily_calories_goal = None, None, None, None
 
-        users_worksheet.append_row(row_to_write)
-
-    if response['updates']['updatedRows'] == 1:
-
-        await callback_query.message.edit_text(
-            text=text_from_nutrition_facts(
-                nutrition_facts=nutrition_facts,
-                is_saved=True
-            ),
-            parse_mode=ParseMode.MARKDOWN_V2,
-            reply_markup=None
+        await sql_write_new_user(
+            conn=conn, 
+            row_to_write={
+                'first_name': first_name,
+                'last_name': last_name,
+                'user_name': username,
+                'user_id': user_id,
+                'timestamp': timestamp,
+                'chat_id': chat_id,
+                'height': height,
+                'weight': weight,
+                'age': age,
+                'daily_calories_goal': daily_calories_goal,
+            }
         )
 
-        await callback_query.message.answer(
-            text='🆒 Your meal info succefully saved!',
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=build_reply_keyboard()
-        )
+        await sql_write_nutrition(conn=conn, meal_row=meal_row)
+    
+    if is_user_exist == True:
+
+        await sql_write_nutrition(conn=conn, meal_row=meal_row)
+
+    await callback_query.message.edit_text(
+        text=text_from_nutrition_facts(
+            nutrition_facts=nutrition_facts,
+            is_saved=True
+        ),
+        parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=None
+    )
+
+    await callback_query.message.answer(
+        text='🆒 Your meal info succefully saved!',
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=build_reply_keyboard()
+    )
+
+BOT_SETTINGS_CHAPTER = None
+#################################### Bot settings ####################################
+# Set the webhook for recieving updates in your url wia HTTPS POST with JSONs
+async def on_startup(bot: Bot) -> None:
+    # If you have a self-signed SSL certificate, then you will need to send a public
+    # certificate to Telegram, for this case we'll use google cloud run service so
+    # it not required to send sertificates
+    await bot.set_webhook(
+        f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}",
+    )
+
+# Middleware to add database connections 
+# from connection pool
+# in current handler data
+async def db_connection_middleware(
+    handler: SimpleRequestHandler, 
+    event, 
+    data, 
+    pool: asyncpg.Pool
+):
+    async with pool.acquire() as conn:
+        data['conn'] = conn
+        return await handler(event, data)
 
 
-def main() -> None:
+async def main() -> None:
     # Dispatcher is a root router
     dp = Dispatcher()
-    # ... and all other routers should be attached to Dispatcher
+
     dp.include_router(form_router)
+
+    # Create the connection pool
+    pool = await asyncpg.create_pool(**DB_CONFIG)
+
+    # Register middleware that add connection 
+    # from pool into handler data
+    dp.message.middleware(
+        lambda handler, event, data:
+            db_connection_middleware(handler, event, data, pool)
+    )
 
     # Register startup hook to initialize webhook
     dp.startup.register(on_startup)
@@ -772,7 +1001,8 @@ def main() -> None:
 
     # Create an instance of request handler,
     # aiogram has few implementations for different cases of usage
-    # In this example we use SimpleRequestHandler which is designed to handle simple cases
+    # In this example we use SimpleRequestHandler 
+    # which is designed to handle simple cases
     webhook_requests_handler = SimpleRequestHandler(
         dispatcher=dp,
         bot=bot,
