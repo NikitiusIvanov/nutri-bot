@@ -950,20 +950,6 @@ async def write_nutrition_to_db(
 
 BOT_SETTINGS_CHAPTER = None
 #################################### Bot settings ####################################
-# Set the webhook for recieving updates in your url wia HTTPS POST with JSONs
-async def on_startup(bot: Bot) -> None:
-    # If you have a self-signed SSL certificate, then you will need to send a public
-    # certificate to Telegram, for this case we'll use google cloud run service so
-    # it not required to send sertificates
-    await bot.set_webhook(
-        f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}",
-    )
-
-async def on_shutdown(dp: Dispatcher):
-    pool = dp.get('pool')
-    if pool:
-        await pool.close()
-
 # Middleware to add database connections 
 # from connection pool
 # in current handler data
@@ -982,22 +968,39 @@ class DatabaseMiddleware(BaseMiddleware):
             data['conn'] = conn
             return await handler(event, data)
 
-def main() -> None:
-    # Dispatcher is a root router
-    dp = Dispatcher()
 
-    dp.include_router(form_router)
+# Set the webhook for recieving updates in your url wia HTTPS POST with JSONs
+async def on_startup(bot: Bot, dp: Dispatcher) -> None:
+    pool = await asyncpg.create_pool(**DB_CONFIG)
 
     # Create the connection pool
-    pool = asyncpg.create_pool(**DB_CONFIG)
-
     dp['pool'] = pool
-
+    
     # Register middleware that add connection 
     # from pool into handler data
     dp.message.middleware(
         DatabaseMiddleware(pool)
     )
+    
+    # If you have a self-signed SSL certificate, then you will need to send a public
+    # certificate to Telegram, for this case we'll use google cloud run service so
+    # it not required to send sertificates
+    await bot.set_webhook(
+        f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}",
+    )
+
+
+async def on_shutdown(dp: Dispatcher):
+    pool = dp.get('pool')
+    if pool:
+        await pool.close()
+
+
+def main() -> None:
+    # Dispatcher is a root router
+    dp = Dispatcher()
+
+    dp.include_router(form_router)
 
     # Register startup hook to initialize webhook
     dp.startup.register(on_startup)
