@@ -3,6 +3,7 @@ import sys
 import os
 import datetime
 import json
+from typing import Any, Awaitable, Callable, Dict
 import numpy as np
 import pandas as pd
 import logging
@@ -11,7 +12,7 @@ import gspread
 from vertexai.generative_models import GenerativeModel, Image
 from aiohttp import web
 
-from aiogram import Bot, Dispatcher, Router
+from aiogram import BaseMiddleware, Bot, Dispatcher, Router
 from aiogram.client.default import DefaultBotProperties
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiogram.enums import ParseMode, ChatAction
@@ -539,8 +540,9 @@ async def get_today_statistics(
     user_id = str(message.from_user.id)
 
     data = await state.get_data()
-
     conn = data['conn']
+
+    logging.debug(f'conn: {type(conn)}')
 
     results = await sql_get_user_todays_statistics(
         conn=conn, 
@@ -956,19 +958,28 @@ async def on_startup(bot: Bot) -> None:
         f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}",
     )
 
+async def on_shutdown(dp: Dispatcher):
+    pool = dp.get('pool')
+    if pool:
+        await pool.close()
+
 # Middleware to add database connections 
 # from connection pool
 # in current handler data
-async def db_connection_middleware(
-    handler: SimpleRequestHandler, 
-    event, 
-    data, 
-    pool: asyncpg.Pool
-):
-    async with pool.acquire() as conn:
-        data['conn'] = conn
-        return await handler(event, data)
+class DatabaseMiddleware(BaseMiddleware):
+    def __init__(self, pool: asyncpg.Pool):
+        super().__init__()
+        self.pool = pool
 
+    async def __call__(
+        self,
+        handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]],
+        event: Message,
+        data: Dict[str, Any]
+    ) -> Any:
+        async with self.pool.acquire() as conn:
+            data['conn'] = conn
+            return await handler(event, data)
 
 async def main() -> None:
     # Dispatcher is a root router
@@ -982,12 +993,12 @@ async def main() -> None:
     # Register middleware that add connection 
     # from pool into handler data
     dp.message.middleware(
-        lambda handler, event, data:
-            db_connection_middleware(handler, event, data, pool)
+        DatabaseMiddleware(pool)
     )
 
     # Register startup hook to initialize webhook
     dp.startup.register(on_startup)
+    dp.shutdown.register(on_shutdown())
 
     # Initialize Bot instance with default bot properties 
     # which will be passed to all API calls
