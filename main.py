@@ -1,3 +1,4 @@
+import asyncio
 import io
 import sys
 import os
@@ -52,7 +53,7 @@ DB_CONFIG = {
     "host": POSTGRES_HOST,
     "database": POSTGRES_DB,
     "user": POSTGRES_USER,
-    "password": POSTGRES_DB
+    "password": POSTGRES_PASSWORD
 }
 
 # get the credentials from env vars
@@ -280,7 +281,7 @@ async def sql_get_user_todays_statistics(
 
 async def check_user_exist(
     message: Message,
-    conn: asyncpg.connection.Connection
+    conn: asyncpg.Connection
 ):
 
     is_user_exist = await sql_check_if_user_exists(conn, message.from_user.id)
@@ -531,6 +532,7 @@ def build_reply_keyboard() -> ReplyKeyboardMarkup:
 async def get_today_statistics(
     message: Message, 
     state: FSMContext,
+    conn: asyncpg.Connection
 ):
     await message.bot.send_chat_action(
         message.chat.id, 
@@ -538,9 +540,6 @@ async def get_today_statistics(
     )
 
     user_id = str(message.from_user.id)
-
-    data = await state.get_data()
-    conn = data['conn']
 
     logging.debug(f'conn: {type(conn)}')
 
@@ -603,7 +602,10 @@ async def get_today_statistics(
     |
     F.text.endswith('/set_daily_goal')
 )
-async def edit_daily_goal_request(message: Message, state: FSMContext):
+async def edit_daily_goal_request(
+    message: Message, 
+    state: FSMContext
+):
     await state.set_state(Form.edit_daily_goal)
 
     await message.answer(
@@ -614,10 +616,9 @@ async def edit_daily_goal_request(message: Message, state: FSMContext):
 @form_router.message(Form.edit_daily_goal)
 async def edit_daily_goal(
     message: Message, 
-    state: FSMContext
+    state: FSMContext,
+    conn: asyncpg.Connection
 ):
-    data = await state.get_data()
-    conn = data['conn']
 
     daily_calories_goal = message.text
     
@@ -687,7 +688,10 @@ async def edit_daily_goal(
         
 
 @form_router.message(CommandStart())
-async def welcome(message: Message, state: FSMContext):
+async def welcome(
+    message: Message, 
+    conn: asyncpg.Connection
+):
     first_name = message.from_user.first_name
 
     await message.answer(
@@ -700,15 +704,14 @@ async def welcome(message: Message, state: FSMContext):
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=build_reply_keyboard()
     )
-    
-    data = await state.get_data()
-    conn = data['conn']
 
     await check_user_exist(message=message, conn=conn)
 
-
 @form_router.message(F.text.endswith('Recognize nutrition'))
-async def recognize_nutrition(message, state: FSMContext):
+async def recognize_nutrition(
+    message, 
+    state: FSMContext
+):
     await message.answer(
         text=(
             'Sure, send me a photo 📸 of your food 🍽 '
@@ -880,9 +883,9 @@ async def apply_corrections(callback_query: CallbackQuery, state: FSMContext):
 async def write_nutrition_to_db(
     callback_query: CallbackQuery, 
     state: FSMContext,
+    conn: asyncpg.Connection
 ):
     data = await state.get_data()
-    conn = data['conn']
 
     nutrition_facts = data['nutrition_facts']
     timestamp = datetime.datetime.now().astimezone().isoformat()
@@ -990,6 +993,8 @@ async def main() -> None:
     # Create the connection pool
     pool = await asyncpg.create_pool(**DB_CONFIG)
 
+    dp['pool'] = pool
+
     # Register middleware that add connection 
     # from pool into handler data
     dp.message.middleware(
@@ -998,7 +1003,7 @@ async def main() -> None:
 
     # Register startup hook to initialize webhook
     dp.startup.register(on_startup)
-    dp.shutdown.register(on_shutdown())
+    dp.shutdown.register(on_shutdown)
 
     # Initialize Bot instance with default bot properties 
     # which will be passed to all API calls
@@ -1031,4 +1036,4 @@ async def main() -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-    main()
+    asyncio.run(main())
