@@ -58,15 +58,13 @@ DB_CONFIG = {
 
 # get the credentials from env vars
 BOT_TOKEN = os.getenv('BOT_TOKEN')
-BASE_WEBHOOK_URL = os.getenv('BASE_WEBHOOK_URL')
 GOOGLE_AI_API_KEY = os.getenv('GOOGLE_AI_API_KEY')
 
+BASE_WEBHOOK_URL = os.getenv('BASE_WEBHOOK_URL')
 # Webserver settings
 WEB_SERVER_HOST = "0.0.0.0"
-
 # Port for incoming request
 WEB_SERVER_PORT = 8080
-
 # Path to webhook route, on which Telegram will send requests
 WEBHOOK_PATH = "/webhook"
       
@@ -1036,4 +1034,4 @@ async def main() -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-    asyncio.run(main())
+    main()
