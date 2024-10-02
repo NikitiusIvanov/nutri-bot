@@ -1002,16 +1002,17 @@ def main() -> None:
 
     dp.include_router(form_router)
 
-    # Register startup hook to initialize webhook
-    dp.startup.register(on_startup)
-    dp.shutdown.register(on_shutdown)
-
     # Initialize Bot instance with default bot properties 
     # which will be passed to all API calls
     bot = Bot(
         token=BOT_TOKEN, 
         default=DefaultBotProperties()
     )
+
+    # Register startup hook to initialize webhook
+    dp.startup.register(lambda: on_startup(bot, dp))
+    
+    dp.shutdown.register(lambda: on_shutdown(dp))
 
     # Create aiohttp.web.Application instance
     app = web.Application()
