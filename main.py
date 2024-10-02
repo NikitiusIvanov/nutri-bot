@@ -206,6 +206,8 @@ async def sql_write_new_user(
         }
     )
 
+    session.commit()
+
 
 async def sql_write_nutrition(
     session: AsyncSession, 
@@ -243,6 +245,8 @@ async def sql_write_nutrition(
             'fat': meal_row['fat']
         }
     )
+
+    session.commit()
 
 
 async def sql_check_daily_goal_exists(
