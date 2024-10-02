@@ -206,7 +206,7 @@ async def sql_write_new_user(
         }
     )
 
-    session.commit()
+    await session.commit()
 
 
 async def sql_write_nutrition(
@@ -246,7 +246,7 @@ async def sql_write_nutrition(
         }
     )
 
-    session.commit()
+    await session.commit()
 
 
 async def sql_check_daily_goal_exists(
