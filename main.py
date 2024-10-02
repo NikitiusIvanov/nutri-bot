@@ -12,6 +12,7 @@ import google.generativeai as genai
 import gspread
 from vertexai.generative_models import GenerativeModel, Image
 from aiohttp import web
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from aiogram import BaseMiddleware, Bot, Dispatcher, Router
 from aiogram.client.default import DefaultBotProperties
@@ -22,6 +23,7 @@ from aiogram import F
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
+    TelegramObject,
     BufferedInputFile,
     KeyboardButton,
     Message,
@@ -48,6 +50,7 @@ POSTGRES_USER=os.getenv('POSTGRES_USER')
 POSTGRES_DB=os.getenv('POSTGRES_DB')
 POSTGRES_PASSWORD=os.getenv('POSTGRES_PASSWORD')
 POSTGRES_HOST=os.getenv('POSTGRES_HOST')
+POSTGRES_PORT='5432'
 
 DB_CONFIG = {
     "host": POSTGRES_HOST,
@@ -55,6 +58,16 @@ DB_CONFIG = {
     "user": POSTGRES_USER,
     "password": POSTGRES_PASSWORD
 }
+
+DB_URL = (
+    'postgresql+asyncpg://'
+    f'{POSTGRES_USER}:{POSTGRES_PASSWORD}'
+    f'@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}'
+)
+
+# Create async engine and session pool
+engine = create_async_engine(DB_URL, echo=True)
+session_maker = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
 # get the credentials from env vars
 BOT_TOKEN = os.getenv('BOT_TOKEN')
@@ -106,8 +119,8 @@ protein: 24, 25
 ####################### Data processing #######################
 DATA_PROCESSING_CHAPTER = None
 async def sql_check_if_user_exists(
-        conn: asyncpg.connection.Connection, 
-        user_id: int,
+    session: AsyncSession, 
+    user_id: int,
 ):
     """Checks if a user with the given user_id exists in the database.
 
@@ -119,39 +132,43 @@ async def sql_check_if_user_exists(
         True if the user exists, False otherwise.
     """
 
-    exists = await conn.fetchrow(
-        "SELECT EXISTS (SELECT 1 FROM users WHERE user_id = $1)", 
-        user_id
+    result = await session.execute(
+        "SELECT EXISTS (SELECT 1 FROM users WHERE user_id = :user_id)", 
+        {'user_id': user_id}
     )
+
+    exists = result.fetchone()
 
     return exists[0]
 
 
 async def sql_get_latest_daily_calories_goal(
-    conn: asyncpg.connection.Connection, 
+    session: AsyncSession, 
     user_id: int,
 ):
-    result = await conn.fetchrow(
+    result = await session.execute(
         """
         SELECT daily_calories_goal
         FROM users
-        WHERE user_id = $1
+        WHERE user_id = :user_id
         ORDER BY timestamp DESC
         LIMIT 1
         """, 
-        user_id
+        {'user_id': user_id}
     )
+
+    result = result.fetchone()
 
     return result[0]
 
 
 async def sql_write_new_user(
-    conn: asyncpg.connection.Connection, 
+    session: AsyncSession, 
     user_row: dict
 ):
     """
     """
-    await conn.execute(
+    await session.execute(
         """
         INSERT INTO users (
             first_name,
@@ -164,28 +181,38 @@ async def sql_write_new_user(
             age,
             daily_calories_goal
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
-        )
+            :first_name,
+            :last_name,
+            :user_name,
+            :user_id,
+            :chat_id,
+            :height,
+            :weight,
+            :age,
+            :daily_calories_goal
+       )
         """,
-        user_row['first_name'],
-        user_row['last_name'],
-        user_row['user_name'],
-        user_row['user_id'],
-        user_row['chat_id'],
-        user_row['height'],
-        user_row['weight'],
-        user_row['age'],
-        user_row['daily_calories_goal']
+        {
+            'first_name': user_row['first_name'],
+            'last_name': user_row['last_name'],
+            'user_name': user_row['user_name'],
+            'user_id': user_row['user_id'],
+            'chat_id': user_row['chat_id'],
+            'height': user_row['height'],
+            'weight': user_row['weight'],
+            'age': user_row['age'],
+            'daily_calories_goal': user_row['daily_calories_goal']
+        }
     )
 
 
 async def sql_write_nutrition(
-    conn: asyncpg.connection.Connection, 
+    session: AsyncSession, 
     meal_row: dict
 ):
     """
     """
-    await conn.execute(
+    await session.execute(
         """
         INSERT INTO meals (
             user_id,
@@ -196,43 +223,52 @@ async def sql_write_nutrition(
             carb,
             fat 
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8
+            :user_id,
+            :dish_name,
+            :calories,
+            :mass,
+            :protein,
+            :carb,
+            :fat
         )
         """,
-        meal_row['user_id'],
-        meal_row['dish_name'],
-        meal_row['calories'],
-        meal_row['mass'],
-        meal_row['protein'],
-        meal_row['carb'],
-        meal_row['fat']
+        {
+            'user_id': meal_row['user_id'],
+            'dish_name': meal_row['dish_name'],
+            'calories': meal_row['calories'],
+            'mass': meal_row['mass'],
+            'protein': meal_row['protein'],
+            'carb': meal_row['carb'],
+            'fat': meal_row['fat']
+        }
     )
 
 
 async def sql_check_daily_goal_exists(
-    conn: asyncpg.connection.Connection, 
+    session: AsyncSession, 
     user_id: int,
 ) -> bool:
     query = """
     SELECT EXISTS (
         SELECT 1 FROM users 
-        WHERE user_id = $1
+        WHERE user_id = :user_id
         and daily_calories_goal is not null
     )
     """
-    result = await conn.fetchrow(query, user_id)
+    result = await session.execute(query, {'user_id': user_id})
+    result = result.fetchone()
     return result[0]
 
 
 async def sql_get_user_todays_statistics(
-    conn: asyncpg.connection.Connection, 
+    session: AsyncSession,
     user_id: int,
 ):
     query_daily_goal = (
         """
         SELECT daily_calories_goal
         FROM users
-        WHERE user_id = $1
+        WHERE user_id = :user_id
         ORDER BY timestamp DESC
         LIMIT 1
         """
@@ -247,15 +283,23 @@ async def sql_get_user_todays_statistics(
             SUM(fat)
         FROM meals
         WHERE timestamp::date = CURRENT_DATE
-        AND user_id = $1
+        AND user_id = :user_id
         GROUP BY user_id;
         """
     )
     
-    daily_calories_goal_result = await conn.fetchrow(query_daily_goal, user_id)
-
-    todays_statitics_result = await conn.fetchrow(query_todays_statitics, user_id)
-
+    daily_calories_goal_result = await session.execute(
+        query_daily_goal,
+        {'user_id': user_id}
+    )
+    daily_calories_goal_result = daily_calories_goal_result.fetchone()
+    
+    todays_statitics_result = await session.execute(
+        query_todays_statitics,
+        {'user_id': user_id}
+    )
+    todays_statitics_result = todays_statitics_result.fetchone()
+    
     try: 
         (
             total_calories, 
@@ -279,10 +323,10 @@ async def sql_get_user_todays_statistics(
 
 async def check_user_exist(
     message: Message,
-    conn: asyncpg.Connection
+    session: AsyncSession,
 ):
 
-    is_user_exist = await sql_check_if_user_exists(conn, message.from_user.id)
+    is_user_exist = await sql_check_if_user_exists(session, message.from_user.id)
 
     if is_user_exist == False:
         
@@ -301,7 +345,7 @@ async def check_user_exist(
         height, weight, age, daily_calories_goal = None, None, None, None
 
         await sql_write_new_user(
-            conn=conn, 
+            conn=session, 
             row_to_write={
                 'first_name': first_name,
                 'last_name': last_name,
@@ -529,11 +573,8 @@ def build_reply_keyboard() -> ReplyKeyboardMarkup:
 )
 async def get_today_statistics(
     message: Message, 
-    dp: Dispatcher,
+    session: AsyncSession
 ):
-    pool: asyncpg.Pool = dp.get('pool')
-    conn: asyncpg.Connection = await pool.acquire()
-    logging.debug(f'conn: {type(conn)}')
 
     await message.bot.send_chat_action(
         message.chat.id, 
@@ -543,7 +584,7 @@ async def get_today_statistics(
     user_id = str(message.from_user.id)
 
     results = await sql_get_user_todays_statistics(
-        conn=conn, 
+        session=session, 
         user_id=user_id
     )
 
@@ -617,11 +658,8 @@ async def edit_daily_goal_request(
 async def edit_daily_goal(
     message: Message, 
     state: FSMContext,
-    dp: Dispatcher
+    session: AsyncSession
 ):
-    pool: asyncpg.Pool = dp.get('pool')
-    conn: asyncpg.Connection = await pool.acquire()
-    
     daily_calories_goal = message.text
     
     try:
@@ -638,7 +676,7 @@ async def edit_daily_goal(
     first_name = message.from_user.first_name
 
     latest_goal = await sql_get_latest_daily_calories_goal(
-        conn=conn, 
+        session=session, 
         user_id=user_id
     )
 
@@ -666,7 +704,7 @@ async def edit_daily_goal(
         height, weight, age = None, None, None
 
         await sql_write_new_user(
-            conn=conn, 
+            session=session, 
             row_to_write={
                 'first_name': first_name,
                 'last_name': last_name,
@@ -692,12 +730,8 @@ async def edit_daily_goal(
 @form_router.message(CommandStart())
 async def welcome(
     message: Message,
-    bot: Bot
+    session: AsyncSession,
 ):
-    dp = bot.get('dispatcher')
-    pool: asyncpg.Pool = dp.get('pool')
-    conn: asyncpg.Connection = await pool.acquire()
-
     first_name = message.from_user.first_name
 
     await message.answer(
@@ -711,11 +745,11 @@ async def welcome(
         reply_markup=build_reply_keyboard()
     )
 
-    await check_user_exist(message=message, conn=conn)
+    await check_user_exist(message=message, session=session)
 
 @form_router.message(F.text.endswith('Recognize nutrition'))
 async def recognize_nutrition(
-    message, 
+    message 
 ):
     await message.answer(
         text=(
@@ -820,9 +854,12 @@ async def edit_data(callback_query: CallbackQuery, state: FSMContext):
 @form_router.message(Form.edit_request)
 async def check_corrections(message: Message, state: FSMContext):
     data = await state.get_data()
+    
     nutrition_facts = data['nutrition_facts']
+    
     key_to_edit = data['key_to_edit']
     new_value = message.text
+    
     if key_to_edit in [
         'calories', 'mass', 'fat', 'carb', 'protein'
     ]:
@@ -888,12 +925,9 @@ async def apply_corrections(callback_query: CallbackQuery, state: FSMContext):
 async def write_nutrition_to_db(
     callback_query: CallbackQuery, 
     state: FSMContext,
-    bot: Bot,
+    session: AsyncSession
 ):
     data = await state.get_data()
-    dp = bot.get('dispatcher')
-    pool: asyncpg.Pool = dp.get('pool')
-    conn: asyncpg.Connection = await pool.acquire()
     
     nutrition_facts = data['nutrition_facts']
     timestamp = datetime.datetime.now().astimezone().isoformat()
@@ -913,7 +947,7 @@ async def write_nutrition_to_db(
         'fat': nutrition_facts['fat'],     
     }
 
-    is_user_exist = await sql_check_if_user_exists(conn=conn, user_id=user_id)
+    is_user_exist = await sql_check_if_user_exists(session=session, user_id=user_id)
 
     if is_user_exist == False:
 
@@ -922,7 +956,7 @@ async def write_nutrition_to_db(
         height, weight, age, daily_calories_goal = None, None, None, None
 
         await sql_write_new_user(
-            conn=conn, 
+            session=session, 
             row_to_write={
                 'first_name': first_name,
                 'last_name': last_name,
@@ -937,11 +971,11 @@ async def write_nutrition_to_db(
             }
         )
 
-        await sql_write_nutrition(conn=conn, meal_row=meal_row)
+        await sql_write_nutrition(session=session, meal_row=meal_row)
     
     if is_user_exist == True:
 
-        await sql_write_nutrition(conn=conn, meal_row=meal_row)
+        await sql_write_nutrition(session=session, meal_row=meal_row)
 
     await callback_query.message.edit_text(
         text=text_from_nutrition_facts(
@@ -960,15 +994,25 @@ async def write_nutrition_to_db(
 
 BOT_SETTINGS_CHAPTER = None
 #################################### Bot settings ####################################
+# Middleware to inject session into handlers
+class DataBaseSession(BaseMiddleware):
+    def __init__(self, session_pool: async_sessionmaker):
+        super().__init__()
+        self.session_pool = session_pool
 
+    async def __call__(
+        self,
+        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
+        event: TelegramObject,
+        data: Dict[str, Any]
+    ) -> Any:
+        async with self.session_pool() as session:
+            data['session'] = session  # Inject session into the data
+            return await handler(event, data)
 
 
 # Set the webhook for recieving updates in your url wia HTTPS POST with JSONs
-async def on_startup(bot: Bot, dp: Dispatcher) -> None:
-    pool = await asyncpg.create_pool(**DB_CONFIG)
-
-    # Create the connection pool
-    dp['pool'] = pool
+async def on_startup(bot: Bot) -> None:
     
     # If you have a self-signed SSL certificate, then you will need to send a public
     # certificate to Telegram, for this case we'll use google cloud run service so
@@ -978,10 +1022,9 @@ async def on_startup(bot: Bot, dp: Dispatcher) -> None:
     )
 
 
-async def on_shutdown(dp: Dispatcher):
-    pool = dp.get('pool')
-    if pool:
-        await pool.close()
+# Close the engine when shutting down
+async def on_shutdown(bot: Bot):
+    await engine.dispose()
 
 
 def main() -> None:
@@ -990,16 +1033,20 @@ def main() -> None:
 
     dp.include_router(form_router)
 
+    # Register startup hook to initialize webhook
+    dp.startup.register(on_startup)
+    dp.shutdown.register(on_shutdown)
+
+    dp.update.middleware(
+        DataBaseSession(session_pool=session_maker)
+    )
+
     # Initialize Bot instance with default bot properties 
     # which will be passed to all API calls
     bot = Bot(
         token=BOT_TOKEN, 
         default=DefaultBotProperties()
     )
-
-    # Register startup hook to initialize webhook
-    dp.startup.register(lambda: on_startup(bot, dp))
-    dp.shutdown.register(lambda: on_shutdown(dp))
 
     # Create aiohttp.web.Application instance
     app = web.Application()
