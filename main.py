@@ -530,9 +530,10 @@ def build_reply_keyboard() -> ReplyKeyboardMarkup:
 async def get_today_statistics(
     message: Message, 
     state: FSMContext,
-    data: dict,
 ):
-    conn: asyncpg.Connection = data['conn']
+    data = await state.get_data()
+    conn: asyncpg.Connection = data.get('conn')
+    logging.debug(f'conn: {type(conn)}')
 
     await message.bot.send_chat_action(
         message.chat.id, 
@@ -540,8 +541,6 @@ async def get_today_statistics(
     )
 
     user_id = str(message.from_user.id)
-
-    logging.debug(f'conn: {type(conn)}')
 
     results = await sql_get_user_todays_statistics(
         conn=conn, 
@@ -618,9 +617,10 @@ async def edit_daily_goal_request(
 async def edit_daily_goal(
     message: Message, 
     state: FSMContext,
-    data: dict,
 ):
-    conn: asyncpg.Connection = data['conn']
+    data = await state.get_data()
+    conn: asyncpg.Connection = data.get('conn')
+    
     daily_calories_goal = message.text
     
     try:
@@ -691,10 +691,13 @@ async def edit_daily_goal(
 @form_router.message(CommandStart())
 async def welcome(
     message: Message,
-    data: dict,
+    state: FSMContext
 ):
+    data = await state.get_data()
+    conn: asyncpg.Connection = data.get('conn')
+
     first_name = message.from_user.first_name
-    conn: asyncpg.Connection = data['conn']
+
     await message.answer(
         text=(
             f'👋 *Hey, {first_name}!* \n'
@@ -883,17 +886,16 @@ async def apply_corrections(callback_query: CallbackQuery, state: FSMContext):
 async def write_nutrition_to_db(
     callback_query: CallbackQuery, 
     state: FSMContext,
-    data: dict,
 ):
-    conn: asyncpg.Connection = data['conn']
+    data = await state.get_data()
+    conn: asyncpg.Connection = data.get('conn')
     
-    state_data = await state.get_data()
-    nutrition_facts = state_data['nutrition_facts']
+    nutrition_facts = data['nutrition_facts']
     timestamp = datetime.datetime.now().astimezone().isoformat()
-    username = state_data['username']
-    first_name = state_data['first_name']
-    last_name = state_data['last_name']
-    user_id = state_data['user_id']
+    username = data['username']
+    first_name = data['first_name']
+    last_name = data['last_name']
+    user_id = data['user_id']
     chat_id = callback_query.message.chat.id
     meal_row = {
         'timestamp': timestamp, 
