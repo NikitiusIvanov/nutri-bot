@@ -692,8 +692,9 @@ async def edit_daily_goal(
 @form_router.message(CommandStart())
 async def welcome(
     message: Message,
-    dp: Dispatcher
+    bot: Bot
 ):
+    dp = bot.get('dispatcher')
     pool: asyncpg.Pool = dp.get('pool')
     conn: asyncpg.Connection = await pool.acquire()
 
@@ -887,10 +888,10 @@ async def apply_corrections(callback_query: CallbackQuery, state: FSMContext):
 async def write_nutrition_to_db(
     callback_query: CallbackQuery, 
     state: FSMContext,
-    dp: Dispatcher,
+    bot: Bot,
 ):
     data = await state.get_data()
-    
+    dp = bot.get('dispatcher')
     pool: asyncpg.Pool = dp.get('pool')
     conn: asyncpg.Connection = await pool.acquire()
     
