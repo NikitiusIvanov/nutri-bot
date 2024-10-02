@@ -582,7 +582,7 @@ async def get_today_statistics(
         action=ChatAction.UPLOAD_DOCUMENT
     )
 
-    user_id = str(message.from_user.id)
+    user_id = int(message.from_user.id)
 
     results = await sql_get_user_todays_statistics(
         session=session, 
@@ -681,51 +681,50 @@ async def edit_daily_goal(
         user_id=user_id
     )
 
-    if daily_calories_goal == float(latest_goal):
-        await message.answer(
-            f'Your daily goal setted in: {daily_calories_goal} kcall',
-            reply_markup=build_reply_keyboard()
-        )
-        return
-    
-    if daily_calories_goal == float(latest_goal):
+    if latest_goal is not None:
         
-        first_name = message.from_user.first_name
+        if daily_calories_goal == float(latest_goal):
+            await message.answer(
+                f'Your daily goal setted in: {daily_calories_goal} kcall',
+                reply_markup=build_reply_keyboard()
+            )
+            return
+    
+    first_name = message.from_user.first_name
 
-        last_name = message.from_user.last_name
+    last_name = message.from_user.last_name
 
-        user_name = message.from_user.username
+    user_name = message.from_user.username
 
-        user_id = message.from_user.id
+    user_id = int(message.from_user.id)
 
-        timestamp = datetime.datetime.now().astimezone().isoformat()
+    timestamp = datetime.datetime.now().astimezone().isoformat()
 
-        chat_id = message.chat.id
+    chat_id = message.chat.id
 
-        height, weight, age = None, None, None
+    height, weight, age = None, None, None
 
-        await sql_write_new_user(
-            session=session, 
-            row_to_write={
-                'first_name': first_name,
-                'last_name': last_name,
-                'user_name': user_name,
-                'user_id': user_id,
-                'timestamp': timestamp,
-                'chat_id': chat_id,
-                'height': height,
-                'weight': weight,
-                'age': age,
-                'daily_calories_goal': daily_calories_goal,
-            }
-        )
+    await sql_write_new_user(
+        session=session, 
+        row_to_write={
+            'first_name': first_name,
+            'last_name': last_name,
+            'user_name': user_name,
+            'user_id': user_id,
+            'timestamp': timestamp,
+            'chat_id': chat_id,
+            'height': height,
+            'weight': weight,
+            'age': age,
+            'daily_calories_goal': daily_calories_goal,
+        }
+    )
 
-
-        await message.answer(
-            f'Your daily goal setted in: {daily_calories_goal} kcall',
-            reply_markup=build_reply_keyboard()
-        )
-        await state.clear()
+    await message.answer(
+        f'Your daily goal setted in: {daily_calories_goal} kcall',
+        reply_markup=build_reply_keyboard()
+    )
+    await state.clear()
         
 
 @form_router.message(CommandStart())
@@ -935,17 +934,18 @@ async def write_nutrition_to_db(
     username = data['username']
     first_name = data['first_name']
     last_name = data['last_name']
-    user_id = data['user_id']
-    chat_id = callback_query.message.chat.id
+    user_id = int(data['user_id'])
+    chat_id = int(callback_query.message.chat.id)
+    
     meal_row = {
         'timestamp': timestamp, 
         'user_id': user_id, 
         'dish_name': nutrition_facts['dish_name'],
-        'calories': nutrition_facts['calories'],
-        'mass': nutrition_facts['mass'],
-        'protein': nutrition_facts['protein'],
-        'carb': nutrition_facts['carb'],
-        'fat': nutrition_facts['fat'],     
+        'calories': int(nutrition_facts['calories']),
+        'mass': int(nutrition_facts['mass']),
+        'protein': float(nutrition_facts['protein']),
+        'carb': float(nutrition_facts['carb']),
+        'fat': float(nutrition_facts['fat']),     
     }
 
     is_user_exist = await sql_check_if_user_exists(session=session, user_id=user_id)
