@@ -346,8 +346,8 @@ async def check_user_exist(
         height, weight, age, daily_calories_goal = None, None, None, None
 
         await sql_write_new_user(
-            conn=session, 
-            row_to_write={
+            session=session, 
+            user_row={
                 'first_name': first_name,
                 'last_name': last_name,
                 'user_name': user_name,
@@ -362,7 +362,7 @@ async def check_user_exist(
         )
 
 
-async def response_to_dict(
+def response_to_dict(
     response: str,
 ) -> dict[str, list[float]] | str:
     """
@@ -706,7 +706,7 @@ async def edit_daily_goal(
 
     await sql_write_new_user(
         session=session, 
-        row_to_write={
+        user_row={
             'first_name': first_name,
             'last_name': last_name,
             'user_name': user_name,
@@ -958,7 +958,7 @@ async def write_nutrition_to_db(
 
         await sql_write_new_user(
             session=session, 
-            row_to_write={
+            user_row={
                 'first_name': first_name,
                 'last_name': last_name,
                 'user_name': username,
