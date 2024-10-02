@@ -529,10 +529,10 @@ def build_reply_keyboard() -> ReplyKeyboardMarkup:
 )
 async def get_today_statistics(
     message: Message, 
-    state: FSMContext,
+    dp: Dispatcher,
 ):
-    data = await state.get_data()
-    conn: asyncpg.Connection = data.get('conn')
+    pool: asyncpg.Pool = dp.get('pool')
+    conn: asyncpg.Connection = await pool.acquire()
     logging.debug(f'conn: {type(conn)}')
 
     await message.bot.send_chat_action(
@@ -617,9 +617,10 @@ async def edit_daily_goal_request(
 async def edit_daily_goal(
     message: Message, 
     state: FSMContext,
+    dp: Dispatcher
 ):
-    data = await state.get_data()
-    conn: asyncpg.Connection = data.get('conn')
+    pool: asyncpg.Pool = dp.get('pool')
+    conn: asyncpg.Connection = await pool.acquire()
     
     daily_calories_goal = message.text
     
@@ -691,10 +692,10 @@ async def edit_daily_goal(
 @form_router.message(CommandStart())
 async def welcome(
     message: Message,
-    state: FSMContext
+    dp: Dispatcher
 ):
-    data = await state.get_data()
-    conn: asyncpg.Connection = data.get('conn')
+    pool: asyncpg.Pool = dp.get('pool')
+    conn: asyncpg.Connection = await pool.acquire()
 
     first_name = message.from_user.first_name
 
@@ -886,9 +887,12 @@ async def apply_corrections(callback_query: CallbackQuery, state: FSMContext):
 async def write_nutrition_to_db(
     callback_query: CallbackQuery, 
     state: FSMContext,
+    dp: Dispatcher,
 ):
     data = await state.get_data()
-    conn: asyncpg.Connection = data.get('conn')
+    
+    pool: asyncpg.Pool = dp.get('pool')
+    conn: asyncpg.Connection = await pool.acquire()
     
     nutrition_facts = data['nutrition_facts']
     timestamp = datetime.datetime.now().astimezone().isoformat()
@@ -955,23 +959,7 @@ async def write_nutrition_to_db(
 
 BOT_SETTINGS_CHAPTER = None
 #################################### Bot settings ####################################
-# Middleware to add database connections 
-# from connection pool
-# in current handler data
-class DatabaseMiddleware(BaseMiddleware):
-    def __init__(self, pool: asyncpg.Pool):
-        super().__init__()
-        self.pool = pool
 
-    async def __call__(
-        self,
-        handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]],
-        event: Message,
-        data: Dict[str, Any]
-    ) -> Any:
-        async with self.pool.acquire() as conn:
-            data['conn'] = conn
-            return await handler(event, data)
 
 
 # Set the webhook for recieving updates in your url wia HTTPS POST with JSONs
@@ -980,12 +968,6 @@ async def on_startup(bot: Bot, dp: Dispatcher) -> None:
 
     # Create the connection pool
     dp['pool'] = pool
-    
-    # Register middleware that add connection 
-    # from pool into handler data
-    dp.message.middleware(
-        DatabaseMiddleware(pool)
-    )
     
     # If you have a self-signed SSL certificate, then you will need to send a public
     # certificate to Telegram, for this case we'll use google cloud run service so
@@ -1016,7 +998,6 @@ def main() -> None:
 
     # Register startup hook to initialize webhook
     dp.startup.register(lambda: on_startup(bot, dp))
-    
     dp.shutdown.register(lambda: on_shutdown(dp))
 
     # Create aiohttp.web.Application instance
