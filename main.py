@@ -13,6 +13,7 @@ import gspread
 from vertexai.generative_models import GenerativeModel, Image
 from aiohttp import web
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.sql import text
 
 from aiogram import BaseMiddleware, Bot, Dispatcher, Router
 from aiogram.client.default import DefaultBotProperties
@@ -133,7 +134,7 @@ async def sql_check_if_user_exists(
     """
 
     result = await session.execute(
-        "SELECT EXISTS (SELECT 1 FROM users WHERE user_id = :user_id)", 
+        text("SELECT EXISTS (SELECT 1 FROM users WHERE user_id = :user_id)"), 
         {'user_id': user_id}
     )
 
@@ -147,13 +148,13 @@ async def sql_get_latest_daily_calories_goal(
     user_id: int,
 ):
     result = await session.execute(
-        """
+        text("""
         SELECT daily_calories_goal
         FROM users
         WHERE user_id = :user_id
         ORDER BY timestamp DESC
         LIMIT 1
-        """, 
+        """), 
         {'user_id': user_id}
     )
 
@@ -169,7 +170,7 @@ async def sql_write_new_user(
     """
     """
     await session.execute(
-        """
+        text("""
         INSERT INTO users (
             first_name,
             last_name,
@@ -191,7 +192,7 @@ async def sql_write_new_user(
             :age,
             :daily_calories_goal
        )
-        """,
+        """),
         {
             'first_name': user_row['first_name'],
             'last_name': user_row['last_name'],
@@ -213,7 +214,7 @@ async def sql_write_nutrition(
     """
     """
     await session.execute(
-        """
+        text("""
         INSERT INTO meals (
             user_id,
             dish_name,
@@ -231,7 +232,7 @@ async def sql_write_nutrition(
             :carb,
             :fat
         )
-        """,
+        """),
         {
             'user_id': meal_row['user_id'],
             'dish_name': meal_row['dish_name'],
@@ -248,13 +249,13 @@ async def sql_check_daily_goal_exists(
     session: AsyncSession, 
     user_id: int,
 ) -> bool:
-    query = """
+    query = text("""
     SELECT EXISTS (
         SELECT 1 FROM users 
         WHERE user_id = :user_id
         and daily_calories_goal is not null
     )
-    """
+    """)
     result = await session.execute(query, {'user_id': user_id})
     result = result.fetchone()
     return result[0]
@@ -264,7 +265,7 @@ async def sql_get_user_todays_statistics(
     session: AsyncSession,
     user_id: int,
 ):
-    query_daily_goal = (
+    query_daily_goal = text(
         """
         SELECT daily_calories_goal
         FROM users
@@ -274,7 +275,7 @@ async def sql_get_user_todays_statistics(
         """
     )
 
-    query_todays_statitics = (
+    query_todays_statitics = text(
         """
         SELECT 
             SUM(calories),
