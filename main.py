@@ -138,7 +138,7 @@ async def sql_check_if_user_exists(
         {'user_id': user_id}
     )
     result = result.fetchone()
-
+    await session.commit()
     return result[0]
 
 
@@ -157,7 +157,7 @@ async def sql_get_latest_daily_calories_goal(
         {'user_id': user_id}
     )
     result = result.fetchone()
-
+    await session.commit()
     return result[0]
 
 
@@ -284,7 +284,6 @@ async def sql_get_daily_goal(
     daily_calories_goal_result = result.fetchone()
     
     await session.commit()
-    
     return daily_calories_goal_result
 
 
