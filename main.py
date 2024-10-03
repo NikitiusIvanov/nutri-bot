@@ -263,8 +263,7 @@ async def sql_check_daily_goal_exists(
 
     return result[0]
 
-
-async def sql_get_user_todays_statistics(
+async def sql_get_daily_goal(
     session: AsyncSession,
     user_id: int,
 ):
@@ -277,6 +276,20 @@ async def sql_get_user_todays_statistics(
         LIMIT 1
         """
     )
+
+    result = await session.execute(
+        query_daily_goal,
+        {'user_id': user_id}
+    )
+    daily_calories_goal_result = result.fetchone()
+
+    return daily_calories_goal_result
+
+
+async def sql_get_user_todays_statistics(
+    session: AsyncSession,
+    user_id: int,
+):
 
     query_todays_statitics = text(
         """
@@ -291,22 +304,13 @@ async def sql_get_user_todays_statistics(
         GROUP BY user_id;
         """
     )
-    
-    daily_calories_goal_result = await session.execute(
-        query_daily_goal,
-        {'user_id': user_id}
-    )
-    daily_calories_goal_result = daily_calories_goal_result.fetchone()
-    print(daily_calories_goal_result)
 
-    
-    todays_statitics_result = await session.execute(
+    result = await session.execute(
         query_todays_statitics,
         {'user_id': user_id}
     )
-    todays_statitics_result = todays_statitics_result.fetchone()
 
-    (todays_statitics_result)
+    todays_statitics_result = result.fetchone()
     
     try: 
         (
@@ -316,17 +320,14 @@ async def sql_get_user_todays_statistics(
             total_fat
         ) = todays_statitics_result
 
-        daily_calories_goal = daily_calories_goal_result[0]
-
         return (
-            daily_calories_goal, 
             total_calories, 
             total_protein, 
             total_carb, 
             total_fat
         )
     except:
-        return None, None, None, None, None
+        return None, None, None, None
 
 
 async def check_user_exist(
@@ -593,11 +594,17 @@ async def get_today_statistics(
     
     print('start sql_get_user_todays_statistics')
     
-    results = await sql_get_user_todays_statistics(
+    statistics = await sql_get_user_todays_statistics(
         session=session, 
         user_id=user_id
     )
 
+    daily_calories_goal = await sql_get_daily_goal(
+        session=session, 
+        user_id=user_id
+    )
+    results = [statistics[0]] + [*daily_calories_goal]
+    
     print(results)
 
     is_any_result_empty = any([x is None for x in results])
