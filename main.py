@@ -415,7 +415,7 @@ def response_to_dict(
     return result
 
 
-async def today_statistic_plotter(
+def today_statistic_plotter(
     daily_calories_goal,
     total_calories,
     total_protein,
@@ -592,11 +592,13 @@ async def get_today_statistics(
         session=session, 
         user_id=user_id
     )
+
     print(results)
 
     is_any_result_empty = any([x is None for x in results])
 
     if is_any_result_empty == False:
+        
         datetime_now = (
             datetime
             .datetime.now()
@@ -613,7 +615,7 @@ async def get_today_statistics(
             total_fat
         ) = results
 
-        fig = await today_statistic_plotter(
+        fig = today_statistic_plotter(
             daily_calories_goal,
             total_calories,
             total_protein,
