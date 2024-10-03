@@ -297,13 +297,14 @@ async def sql_get_user_todays_statistics(
         query_daily_goal,
         {'user_id': user_id}
     )
-    daily_calories_goal_result = daily_calories_goal_result.fetchone()
+    daily_calories_goal_result = await daily_calories_goal_result.fetchone()
+
     
     todays_statitics_result = await session.execute(
         query_todays_statitics,
         {'user_id': user_id}
     )
-    todays_statitics_result = todays_statitics_result.fetchone()
+    todays_statitics_result = await todays_statitics_result.fetchone()
     
     try: 
         (
@@ -587,7 +588,7 @@ async def get_today_statistics(
     )
 
     user_id = int(message.from_user.id)
-
+    print('start sql_get_user_todays_statistics')
     results = await sql_get_user_todays_statistics(
         session=session, 
         user_id=user_id
