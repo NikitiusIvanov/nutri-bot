@@ -281,7 +281,7 @@ async def sql_get_daily_goal(
         query_daily_goal,
         {'user_id': user_id}
     )
-    daily_calories_goal_result = result.fetchone()
+    daily_calories_goal_result = result.scalar()
     
     await session.commit()
     return daily_calories_goal_result
@@ -311,7 +311,7 @@ async def sql_get_user_todays_statistics(
         {'user_id': user_id}
     )
 
-    todays_statitics_result = result.fetchone()
+    todays_statitics_result = result.scalars()
     
     try: 
         (
@@ -606,6 +606,7 @@ async def get_today_statistics(
         session=session, 
         user_id=user_id
     )
+    
     results = [daily_calories_goal[0]] + [*statistics]
     
     print(results)
