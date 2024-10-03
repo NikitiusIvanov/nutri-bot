@@ -613,13 +613,10 @@ async def get_today_statistics(
 
     is_any_result_empty = any([x is None for x in results])
 
-    if is_any_result_empty == False:
-
-        if is_any_result_empty == True:
-            await message.reply(
-                text='Unfortunately there is no data'
-            )
-
+    if is_any_result_empty == True:
+        await message.reply(
+            text='Unfortunately there is no data'
+        )
         return
         
     datetime_now = (
