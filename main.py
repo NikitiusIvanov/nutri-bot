@@ -592,10 +592,11 @@ async def get_today_statistics(
         session=session, 
         user_id=user_id
     )
+    print(results)
 
     is_any_result_empty = any([x is None for x in results])
 
-    if not is_any_result_empty == False:
+    if is_any_result_empty == False:
         datetime_now = (
             datetime
             .datetime.now()
