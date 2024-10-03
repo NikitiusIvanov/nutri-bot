@@ -603,7 +603,7 @@ async def get_today_statistics(
         session=session, 
         user_id=user_id
     )
-    results = [statistics[0]] + [*daily_calories_goal]
+    results = [daily_calories_goal[0]] + [*statistics]
     
     print(results)
 
