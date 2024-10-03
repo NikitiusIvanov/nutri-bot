@@ -282,7 +282,9 @@ async def sql_get_daily_goal(
         {'user_id': user_id}
     )
     daily_calories_goal_result = result.fetchone()
-
+    
+    session.commit()
+    
     return daily_calories_goal_result
 
 
@@ -319,7 +321,8 @@ async def sql_get_user_todays_statistics(
             total_carb, 
             total_fat
         ) = todays_statitics_result
-
+        
+        session.commit()
         return (
             total_calories, 
             total_protein, 
@@ -327,6 +330,7 @@ async def sql_get_user_todays_statistics(
             total_fat
         )
     except:
+        session.commit()
         return None, None, None, None
 
 
@@ -610,52 +614,54 @@ async def get_today_statistics(
     is_any_result_empty = any([x is None for x in results])
 
     if is_any_result_empty == False:
+
+        if is_any_result_empty == True:
+            await message.reply(
+                text='Unfortunately there is no data'
+            )
+
+        return
         
-        datetime_now = (
-            datetime
-            .datetime.now()
-            .astimezone()
-            .isoformat()
-            .split('.')[0]
-        )
+    datetime_now = (
+        datetime
+        .datetime.now()
+        .astimezone()
+        .isoformat()
+        .split('.')[0]
+    )
 
-        (
-            daily_calories_goal,
-            total_calories,
-            total_protein,
-            total_carb,
-            total_fat
-        ) = results
+    (
+        daily_calories_goal,
+        total_calories,
+        total_protein,
+        total_carb,
+        total_fat
+    ) = results
 
-        fig = today_statistic_plotter(
-            daily_calories_goal,
-            total_calories,
-            total_protein,
-            total_carb,
-            total_fat
-        )
+    fig = today_statistic_plotter(
+        daily_calories_goal,
+        total_calories,
+        total_protein,
+        total_carb,
+        total_fat
+    )
 
-        output_buffer = io.BytesIO()
-        
-        fig.write_image(output_buffer, format="png")
+    output_buffer = io.BytesIO()
+    
+    fig.write_image(output_buffer, format="png")
 
-        output_buffer.seek(0)
+    output_buffer.seek(0)
 
-        file_bytes = output_buffer.read()
+    file_bytes = output_buffer.read()
 
-        document = BufferedInputFile(
-            file=file_bytes, 
-            filename=f'{datetime_now}_statistics.png'
-        )
+    document = BufferedInputFile(
+        file=file_bytes, 
+        filename=f'{datetime_now}_statistics.png'
+    )
 
-        await message.reply_photo(
-            photo=document
-        )
-
-    if is_any_result_empty == True:
-        await message.reply(
-            text='Unfortunately there is no data'
-        )
+    await message.reply_photo(
+        photo=document
+    )
 
 
 @form_router.message(
