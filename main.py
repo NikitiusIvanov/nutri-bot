@@ -138,9 +138,7 @@ async def sql_check_if_user_exists(
         {'user_id': user_id}
     )
 
-    exists = result.fetchone()
-
-    return exists[0]
+    return result[0]
 
 
 async def sql_get_latest_daily_calories_goal(
@@ -157,8 +155,6 @@ async def sql_get_latest_daily_calories_goal(
         """), 
         {'user_id': user_id}
     )
-
-    result = result.fetchone()
 
     return result[0]
 
@@ -261,7 +257,7 @@ async def sql_check_daily_goal_exists(
     )
     """)
     result = await session.execute(query, {'user_id': user_id})
-    result = result.fetchone()
+
     return result[0]
 
 
@@ -297,14 +293,14 @@ async def sql_get_user_todays_statistics(
         query_daily_goal,
         {'user_id': user_id}
     )
-    daily_calories_goal_result = await daily_calories_goal_result.fetchone()
+    print(daily_calories_goal_result)
 
     
     todays_statitics_result = await session.execute(
         query_todays_statitics,
         {'user_id': user_id}
     )
-    todays_statitics_result = await todays_statitics_result.fetchone()
+    (todays_statitics_result)
     
     try: 
         (
