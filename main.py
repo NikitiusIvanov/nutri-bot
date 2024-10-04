@@ -592,16 +592,6 @@ async def get_today_statistics(
     user_id = int(message.from_user.id)
     
     print('start sql_get_user_todays_statistics')
-    
-    # statistics = await sql_get_user_todays_statistics(
-    #     session=session, 
-    #     user_id=user_id
-    # )
-
-    # daily_calories_goal = await sql_get_daily_goal(
-    #     session=session, 
-    #     user_id=user_id
-    # )
 
     query_todays_statitics = text(
         """
@@ -632,7 +622,7 @@ async def get_today_statistics(
         {'user_id': user_id}
     )
 
-    statistics = result.fetchone()
+    statistics = result.first()
 
     print('query result', statistics)
 
