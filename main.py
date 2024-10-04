@@ -626,7 +626,7 @@ async def get_today_statistics(
 
         statistics = results.fetchone()
 
-    session.close()
+    await session.close()
 
     print('query result', statistics)
 
