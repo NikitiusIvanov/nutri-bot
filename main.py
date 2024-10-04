@@ -626,15 +626,15 @@ async def get_today_statistics(
         GROUP BY u.daily_calories_goal;
         """
     )
-    async with session.begin():
-        result = await session.execute(
-            query_todays_statitics,
-            {'user_id': user_id}
-        )
+    # async with session.begin():
+    result = await session.execute(
+        query_todays_statitics,
+        {'user_id': user_id}
+    )
 
-        statistics = result.fetchone()
+    statistics = result.fetchone()
 
-        print('query result', statistics)
+    print('query result', statistics)
 
     results = [*statistics]
     
