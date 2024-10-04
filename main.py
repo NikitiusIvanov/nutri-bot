@@ -629,7 +629,7 @@ async def get_today_statistics(
 
     print('query result', statistics)
 
-    results = [*statistics]
+    results = statistics
     
     print(results)
 
