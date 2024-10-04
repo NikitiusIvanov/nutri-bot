@@ -624,8 +624,8 @@ async def get_today_statistics(
         {'user_id': user_id}
     )
     statistics = []
-    for result in await results:
-        statistics.append(result.scalar())
+    for result in results.columns():
+        statistics.append(result)
 
     print('query result', statistics)
 
