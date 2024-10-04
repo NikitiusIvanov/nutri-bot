@@ -325,25 +325,8 @@ async def sql_get_user_todays_statistics(
         todays_statitics_result = result.fetchone()
 
         print('query result',todays_statitics_result)
-
-        try: 
-            (
-                daily_goal,
-                total_calories, 
-                total_protein, 
-                total_carb, 
-                total_fat
-            ) = todays_statitics_result
-            
-            return (
-                daily_goal,
-                total_calories, 
-                total_protein, 
-                total_carb, 
-                total_fat
-            )
-        except:
-            return None, None, None, None, None
+    
+        return todays_statitics_result
 
 
 async def check_user_exist(
