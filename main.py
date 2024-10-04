@@ -624,7 +624,9 @@ async def get_today_statistics(
             {'user_id': user_id}
         )
 
-        statistics = results.first().tuple()
+        statistics = results.fetchone()
+
+    session.close()
 
     print('query result', statistics)
 
