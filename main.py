@@ -619,12 +619,13 @@ async def get_today_statistics(
     
     # async with session.begin():
 
-    results = await session.scalars(
+    results = await session.execute(
         query_todays_statitics,
         {'user_id': user_id}
     )
-
-    statistics = results.all()
+    statistics = []
+    for result in results.fetchone():
+        statistics.append(result.scalar())
 
     print('query result', statistics)
 
