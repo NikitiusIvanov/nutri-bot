@@ -316,34 +316,34 @@ async def sql_get_user_todays_statistics(
         GROUP BY u.daily_calories_goal;
         """
     )
-
-    result = await session.execute(
-        query_todays_statitics,
-        {'user_id': user_id}
-    )
-
-    todays_statitics_result = result.fetchone()
-
-    print('query result',todays_statitics_result)
-
-    try: 
-        (
-            daily_goal,
-            total_calories, 
-            total_protein, 
-            total_carb, 
-            total_fat
-        ) = todays_statitics_result
-        
-        return (
-            daily_goal,
-            total_calories, 
-            total_protein, 
-            total_carb, 
-            total_fat
+    async with session.begin():
+        result = await session.execute(
+            query_todays_statitics,
+            {'user_id': user_id}
         )
-    except:
-        return None, None, None, None, None
+
+        todays_statitics_result = result.fetchone()
+
+        print('query result',todays_statitics_result)
+
+        try: 
+            (
+                daily_goal,
+                total_calories, 
+                total_protein, 
+                total_carb, 
+                total_fat
+            ) = todays_statitics_result
+            
+            return (
+                daily_goal,
+                total_calories, 
+                total_protein, 
+                total_carb, 
+                total_fat
+            )
+        except:
+            return None, None, None, None, None
 
 
 async def check_user_exist(
