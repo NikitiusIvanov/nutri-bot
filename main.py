@@ -67,7 +67,7 @@ DB_URL = (
 )
 
 # Create async engine and session pool
-engine = create_async_engine(DB_URL, echo=True)
+engine = create_async_engine(DB_URL, echo='debug', echo_pool='debug', pool_size=20)
 session_maker = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
 # get the credentials from env vars
@@ -296,14 +296,24 @@ async def sql_get_user_todays_statistics(
     query_todays_statitics = text(
         """
         SELECT 
-            SUM(calories),
-            SUM(protein),
-            SUM(carb),
-            SUM(fat)
-        FROM meals
-        WHERE timestamp::date = CURRENT_DATE
-        AND user_id = :user_id
-        GROUP BY user_id;
+            u.daily_calories_goal,
+            SUM(m.calories) AS total_calories,
+            SUM(m.protein) AS total_protein,
+            SUM(m.carb) AS total_carb,
+            SUM(m.fat) AS total_fat
+        FROM meals m
+        JOIN (
+            select 
+                daily_calories_goal,
+                user_id
+            from users
+            where user_id = :user_id
+            order by timestamp DESC
+            limit 1
+        ) u ON m.user_id = u.user_id
+        WHERE m.timestamp::date = CURRENT_DATE
+        AND m.user_id = :user_id
+        GROUP BY u.daily_calories_goal;
         """
     )
 
@@ -318,6 +328,7 @@ async def sql_get_user_todays_statistics(
 
     try: 
         (
+            daily_goal,
             total_calories, 
             total_protein, 
             total_carb, 
@@ -325,13 +336,14 @@ async def sql_get_user_todays_statistics(
         ) = todays_statitics_result
         
         return (
+            daily_goal,
             total_calories, 
             total_protein, 
             total_carb, 
             total_fat
         )
     except:
-        return None, None, None, None
+        return None, None, None, None, None
 
 
 async def check_user_exist(
@@ -603,12 +615,12 @@ async def get_today_statistics(
         user_id=user_id
     )
 
-    daily_calories_goal = await sql_get_daily_goal(
-        session=session, 
-        user_id=user_id
-    )
+    # daily_calories_goal = await sql_get_daily_goal(
+    #     session=session, 
+    #     user_id=user_id
+    # )
 
-    results = [daily_calories_goal] + [*statistics]
+    results = [*statistics]
     
     print(results)
 
