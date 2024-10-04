@@ -156,9 +156,9 @@ async def sql_get_latest_daily_calories_goal(
         """), 
         {'user_id': user_id}
     )
-    result = result.fetchone()
+    result = result.scalar()
     await session.commit()
-    return result[0]
+    return result
 
 
 async def sql_write_new_user(
@@ -636,7 +636,7 @@ async def get_today_statistics(
         total_carb,
         total_fat
     ) = results
-
+    print('start creating fig')
     fig = today_statistic_plotter(
         daily_calories_goal,
         total_calories,
@@ -644,11 +644,11 @@ async def get_today_statistics(
         total_carb,
         total_fat
     )
-
+    print('finish creating fig')
     output_buffer = io.BytesIO()
-    
+    print('finish creating bytes')
     fig.write_image(output_buffer, format="png")
-
+    print('finish write image into buffer')
     output_buffer.seek(0)
 
     file_bytes = output_buffer.read()
@@ -657,7 +657,7 @@ async def get_today_statistics(
         file=file_bytes, 
         filename=f'{datetime_now}_statistics.png'
     )
-
+    print('finish preparing buffered document')
     await message.reply_photo(
         photo=document
     )
