@@ -311,8 +311,12 @@ async def sql_get_user_todays_statistics(
         {'user_id': user_id}
     )
 
-    todays_statitics_result = result.scalars()
+    todays_statitics_result = result.fetchone()
+
+    print('query result',todays_statitics_result)
     
+    await session.commit()
+
     try: 
         (
             total_calories, 
@@ -321,7 +325,6 @@ async def sql_get_user_todays_statistics(
             total_fat
         ) = todays_statitics_result
         
-        session.commit()
         return (
             total_calories, 
             total_protein, 
@@ -329,7 +332,6 @@ async def sql_get_user_todays_statistics(
             total_fat
         )
     except:
-        await session.commit()
         return None, None, None, None
 
 
