@@ -593,15 +593,48 @@ async def get_today_statistics(
     
     print('start sql_get_user_todays_statistics')
     
-    statistics = await sql_get_user_todays_statistics(
-        session=session, 
-        user_id=user_id
-    )
+    # statistics = await sql_get_user_todays_statistics(
+    #     session=session, 
+    #     user_id=user_id
+    # )
 
     # daily_calories_goal = await sql_get_daily_goal(
     #     session=session, 
     #     user_id=user_id
     # )
+
+    query_todays_statitics = text(
+        """
+        SELECT 
+            u.daily_calories_goal,
+            SUM(m.calories) AS total_calories,
+            SUM(m.protein) AS total_protein,
+            SUM(m.carb) AS total_carb,
+            SUM(m.fat) AS total_fat
+        FROM meals m
+        JOIN (
+            select 
+                daily_calories_goal,
+                user_id
+            from users
+            where user_id = :user_id
+            order by timestamp DESC
+            limit 1
+        ) u ON m.user_id = u.user_id
+        WHERE m.timestamp::date = CURRENT_DATE
+        AND m.user_id = :user_id
+        GROUP BY u.daily_calories_goal;
+        """
+    )
+    async with session.begin():
+        result = await session.execute(
+            query_todays_statitics,
+            {'user_id': user_id}
+        )
+
+        statistics = result.fetchone()
+
+        print('query result', statistics)
 
     results = [*statistics]
     
