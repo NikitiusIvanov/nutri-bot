@@ -617,12 +617,11 @@ async def get_today_statistics(
         """
     )
     # async with session.begin():
-    result = await session.execute(
+    
+    statistics = await session.execute(
         query_todays_statitics,
         {'user_id': user_id}
-    )
-
-    statistics = result.first()
+    ).first()
 
     print('query result', statistics)
 
