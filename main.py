@@ -658,10 +658,6 @@ async def get_today_statistics(
     
     print('start sql_get_user_todays_statistics')
 
-    # statistics = await sql_get_user_todays_statistics(
-    #     session=session,
-    #     user_id=user_id
-    # )
     query_daily_goal = text(
         """
         SELECT daily_calories_goal
@@ -717,7 +713,7 @@ async def get_today_statistics(
     )
     
 
-    daily_goal = await session.execute(
+    daily_goal = await session(
         query_daily_goal,
         {'user_id': user_id}
     )
@@ -815,9 +811,24 @@ async def get_today_statistics(
 )
 async def edit_daily_goal_request(
     message: Message, 
-    state: FSMContext
+    state: FSMContext,
+    session
 ):
     await state.set_state(Form.edit_daily_goal)
+
+    user_id = message.from_user.id
+
+    latest_goal = await sql_get_latest_daily_calories_goal(
+        session=session, 
+        user_id=user_id
+    )
+
+    if latest_goal is not None:
+        
+        await message.answer(
+            f'Your daily goal setted in: {latest_goal} kcall',
+            reply_markup=build_reply_keyboard()
+        )
 
     await message.answer(
         text='Please set amount of kcall that You want to consume daily\n'
