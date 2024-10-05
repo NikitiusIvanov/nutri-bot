@@ -628,7 +628,7 @@ async def get_today_statistics(
     results = await session.scalars(
         query_todays_statitics,
         {'user_id': user_id}
-    ).all()
+    )
 
 
     # results = results.fetchone()
