@@ -541,6 +541,7 @@ class Form(StatesGroup):
     key_to_edit = State()
     new_value = State()
     edit_daily_goal = State()
+    statistics = State()
 
 form_router = Router()
 
@@ -778,29 +779,33 @@ async def get_my_stats(
 
     print('my_stats: ', my_stats)
 
+    await state.set_data(statistics=my_stats)
+
     await message.answer(
         text=f'Your stats: {my_stats}'
     )
 
+
+@form_router.message(
+    F.text.startswith('Your stats:')
+)
+async def stats_ploting_and_send(
+    message: Message, 
+    state: FSMContext,
+    session: AsyncSession
+):
+    print('Your stats is triggered, start creating fig')
+    data = await state.get_data()
+    statistics = data.get('statistics')
     (
         latest_goal,
         total_calories,
         total_protein,
         total_carb,
         total_fat
-    ) = my_stats
+    ) = statistics
 
     print('start creating fig')
-
-    # fig = await today_statistic_plotter(
-    #     latest_goal,
-    #     total_calories,
-    #     total_protein,
-    #     total_carb,
-    #     total_fat
-    # )
-
-    # Create a figure and set size
     fig, axs = plt.subplots(1, 2, figsize=(8, 4))
 
     # First plot: Calories
@@ -834,25 +839,9 @@ async def get_my_stats(
 
     # Close figure to avoid memory leaks
     plt.close(fig)
-
-    datetime_now = (
-        datetime
-        .datetime.now()
-        .astimezone()
-        .isoformat()
-        .split('.')[0]
-    )
-
-    print('finish creating fig')
-
-    # file_bytes = fig.read()
-
-    # document = BufferedInputFile(
-    #     file=file_bytes, 
-    #     filename=f'{datetime_now}_statistics.png'
-    # )
     
-    print('finish preparing buffered document')
+    print('finish creating fig')
+    await asyncio.sleep(0.5)
     
     await message.reply_photo(
         photo=BufferedInputFile(
