@@ -633,7 +633,13 @@ async def get_today_statistics(
         print('query result', results)
 
         statistics = []
-        for column in results.columns():
+        for column in results.columns(
+            'daily_calories_goal', 
+            'total_calories', 
+            'total_protein', 
+            'total_carb', 
+            'total_fat'
+        ):
             statistics.append(column)
 
         print('statistics', statistics)
