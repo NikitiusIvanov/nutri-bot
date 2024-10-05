@@ -774,7 +774,7 @@ async def get_my_stats(
         {'user_id': user_id}
     )
 
-    my_stats = list(my_stats.fetchone())
+    my_stats = [latest_goal] + list(my_stats.fetchone())
 
     print('my_stats: ', my_stats)
 
@@ -783,6 +783,7 @@ async def get_my_stats(
     )
 
     (
+        latest_goal,
         total_calories,
         total_protein,
         total_carb,
@@ -791,13 +792,48 @@ async def get_my_stats(
 
     print('start creating fig')
 
-    fig = await today_statistic_plotter(
-        latest_goal,
-        total_calories,
-        total_protein,
-        total_carb,
-        total_fat
-    )
+    # fig = await today_statistic_plotter(
+    #     latest_goal,
+    #     total_calories,
+    #     total_protein,
+    #     total_carb,
+    #     total_fat
+    # )
+
+    # Create a figure and set size
+    fig, axs = plt.subplots(1, 2, figsize=(8, 4))
+
+    # First plot: Calories
+    categories = ['Calories']
+    daily_goals = [latest_goal]
+    consumed = [total_calories]
+
+    # Plot daily goal and consumed calories
+    width = 0.3
+    axs[0].bar(categories, daily_goals, width=width, label='Daily goal', color='gray', alpha=0.6)
+    axs[0].bar(categories, consumed, width=width, label='Today\'s calories', color='green')
+
+    axs[0].set_title('Calories (kcal)')
+    axs[0].legend()
+
+    # Second plot: Macronutrients (protein, carb, fat)
+    nutrients = ['Protein', 'Carb', 'Fat']
+    values = [total_protein, total_carb, total_fat]
+    colors = ['brown', 'purple', 'orange']
+
+    axs[1].bar(nutrients, values, color=colors)
+    axs[1].set_title('Macronutrients (g)')
+
+    # Adjust layout
+    plt.tight_layout()
+
+    # Save plot to a BytesIO buffer
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)  # Rewind buffer to the beginning for reading
+
+    # Close figure to avoid memory leaks
+    plt.close(fig)
 
     datetime_now = (
         datetime
@@ -809,17 +845,20 @@ async def get_my_stats(
 
     print('finish creating fig')
 
-    file_bytes = fig.read()
+    # file_bytes = fig.read()
 
-    document = BufferedInputFile(
-        file=file_bytes, 
-        filename=f'{datetime_now}_statistics.png'
-    )
+    # document = BufferedInputFile(
+    #     file=file_bytes, 
+    #     filename=f'{datetime_now}_statistics.png'
+    # )
     
     print('finish preparing buffered document')
     
     await message.reply_photo(
-        photo=document
+        photo=BufferedInputFile(
+            file=buf.read(), 
+            filename=f'{datetime_now}_statistics.png'
+        )
     )
 
 
