@@ -67,7 +67,13 @@ DB_URL = (
 )
 
 # Create async engine and session pool
-engine = create_async_engine(DB_URL, echo='debug', echo_pool='debug', pool_size=20)
+engine = create_async_engine(
+    DB_URL, 
+    echo='debug', 
+    echo_pool='debug', 
+    pool_size=20,
+    pool_recycle=2,
+)
 session_maker = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
 # get the credentials from env vars
@@ -619,10 +625,10 @@ async def get_today_statistics(
     
     # async with session.begin():
 
-    results = await session.execute(
+    results = await session.scalars(
         query_todays_statitics,
         {'user_id': user_id}
-    )
+    ).all()
 
 
     # results = results.fetchone()
