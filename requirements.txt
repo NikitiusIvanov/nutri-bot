@@ -23,7 +23,8 @@ grpcio-status==1.62.2
 gspread==6.1.2
 numpy==1.26.4
 pandas==2.2.2
-plotly==5.22.0
+matplotlib==3.9.2
+pillow==10.4.0
 pytz==2024.1
 requests==2.32.3
 vertexai==1.49.0

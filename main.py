@@ -9,7 +9,6 @@ import numpy as np
 import pandas as pd
 import logging
 import google.generativeai as genai
-import gspread
 from vertexai.generative_models import GenerativeModel, Image
 from aiohttp import web
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -40,10 +39,8 @@ from aiogram.utils.keyboard import (
 )
 
 from aiogram.client.session.aiohttp import AiohttpSession
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
+import matplotlib.pyplot as plt
 import logging
-import asyncpg
 
 # get db credentials
 # Db Configuration
@@ -481,97 +478,56 @@ def response_to_dict(
             result = 'not correct result'
     return result
 
+
 async def today_statistic_plotter(
     daily_calories_goal,
     total_calories,
     total_protein,
     total_carb,
     total_fat
-) -> go.Figure:
+) -> io.BytesIO:
 
     # Use asyncio.to_thread to ensure the function runs asynchronously
     return await asyncio.to_thread(_create_plot, daily_calories_goal, total_calories, total_protein, total_carb, total_fat)
 
-def _create_plot(
-    daily_calories_goal,
-    total_calories,
-    total_protein,
-    total_carb,
-    total_fat
-)-> go.Figure:
-    
-    fig = make_subplots(
-        subplot_titles=[
-            'Calories (kcal)', 
-            'Macronutrients (g)'
-        ],
-        column_widths=[0.6, 0.4],
-        rows=1, cols=2
-    )
 
-    fig.add_trace(
-        go.Bar(
-            x=['Calories'],
-            y=[daily_calories_goal],
-            marker=dict(color='rgba(116, 117, 116, 0.6)'),
-            name='Daily goal',
-            width=0.3
-        ),
-        row=1, col=1
-    )
+def _create_plot(daily_calories_goal, total_calories, total_protein, total_carb, total_fat) -> io.BytesIO:
+    # Create a figure and set size
+    fig, axs = plt.subplots(1, 2, figsize=(8, 4))
 
-    fig.add_trace(
-        go.Bar(
-            x=['Calories'],
-            y=[total_calories],
-            marker=dict(color='green'),
-            name='Todays calories',
-            width=0.295,
-        ),
-        row=1, col=1
-    )
+    # First plot: Calories
+    categories = ['Calories']
+    daily_goals = [daily_calories_goal]
+    consumed = [total_calories]
 
-    for entity_name, color, value in zip(
-        ['protein', 'carb', 'fat'],
-        [
-            'rgba(189, 88, 68, 1)',
-            'rgba(139, 93, 212, 1)',
-            'rgba(224, 169, 65, 1)'
-        ],
-        [
-            total_protein,
-            total_carb,
-            total_fat
-        ]
-    ):
-        fig.add_trace(
-            go.Bar(
-                x=[entity_name],
-                y=[value],
-                textfont=dict(size=15),
-                marker=dict(color=color),
-                name=entity_name,
-            ),
-            row=1,
-            col=2
-        )
+    # Plot daily goal and consumed calories
+    width = 0.3
+    axs[0].bar(categories, daily_goals, width=width, label='Daily goal', color='gray', alpha=0.6)
+    axs[0].bar(categories, consumed, width=width, label='Today\'s calories', color='green')
 
-    fig.update_layout(
-        width=600,
-        height=300,
-        template='plotly_white',
-        bargap=0.01,
-        barmode='overlay',
-        legend=dict(
-            orientation='h', 
-            x=0.5, 
-            xanchor='center',
-            borderwidth=0.01,
-        ),
-        margin = dict(t=50, l=0, r=0, b=0),
-    )
+    axs[0].set_title('Calories (kcal)')
+    axs[0].legend()
 
-    return fig
+    # Second plot: Macronutrients (protein, carb, fat)
+    nutrients = ['Protein', 'Carb', 'Fat']
+    values = [total_protein, total_carb, total_fat]
+    colors = ['brown', 'purple', 'orange']
+
+    axs[1].bar(nutrients, values, color=colors)
+    axs[1].set_title('Macronutrients (g)')
+
+    # Adjust layout
+    plt.tight_layout()
+
+    # Save plot to a BytesIO buffer
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)  # Rewind buffer to the beginning for reading
+
+    # Close figure to avoid memory leaks
+    plt.close(fig)
+
+    return buf
 
 
 ####################### Bot logic #######################
@@ -668,93 +624,49 @@ async def get_today_statistics(
     
     print('start sql_get_user_todays_statistics')
 
-    query_daily_goal = text(
+    user_id = message.from_user.id
+
+    get_user_stats_query = text(
         """
-        SELECT daily_calories_goal
-        FROM users
-        WHERE user_id = :user_id
-        ORDER BY timestamp DESC
-        LIMIT 1
+        select 
+            SUM(calories),
+            SUM(protein),
+            SUM(carb),
+            SUM(fat)
+        from meals
+        where 
+            user_id = :user_id
+            and 
+            timestamp::date = current_date
+        group by user_id;
         """
     )
     
-    query_todays_calories = text(
-        """
-        SELECT 
-            SUM(m.calories) AS total_calories
-        FROM meals m
-        WHERE m.timestamp::date = CURRENT_DATE
-        AND m.user_id = :user_id
-        GROUP BY m.user_id;
-        """
+    daily_calories_goal = await sql_get_latest_daily_calories_goal(
+        session=session, 
+        user_id=user_id
     )
     
-    query_todays_protein = text(
-        """
-        SELECT 
-            SUM(m.protein) AS total_protein
-        FROM meals m
-        WHERE m.timestamp::date = CURRENT_DATE
-        AND m.user_id = :user_id
-        GROUP BY m.user_id;
-        """
-    )
-    
-    query_todays_carb = text(
-        """
-        SELECT 
-            SUM(m.carb) AS total_carb
-        FROM meals m
-        WHERE m.timestamp::date = CURRENT_DATE
-        AND m.user_id = :user_id
-        GROUP BY m.user_id;
-        """
-    )
-    
-    query_todays_fat = text(
-        """
-        SELECT 
-            SUM(m.fat) AS total_fat
-        FROM meals m
-        WHERE m.timestamp::date = CURRENT_DATE
-        AND m.user_id = :user_id
-        GROUP BY m.user_id;
-        """
-    )
-    
-
-    daily_goal = await session(
-        query_daily_goal,
+    statistics = await session.execute(
+        get_user_stats_query,
         {'user_id': user_id}
     )
 
-    todays_calories = await session.execute(
-        query_todays_calories,
-        {'user_id': user_id}
+    statistics = list(statistics.fetchone())
+
+    print('my_stats: ', statistics)
+
+    await message.answer(
+        text=f'Your stats: {statistics}'
     )
 
-    todays_protein = await session.execute(
-        query_todays_protein,
-        {'user_id': user_id}
-    )
+    (
+        total_calories,
+        total_protein,
+        total_carb,
+        total_fat
+    ) = statistics
 
-    todays_carb = await session.execute(
-        query_todays_carb,
-        {'user_id': user_id}
-    )
-
-    todays_fat = await session.execute(
-        query_todays_fat,
-        {'user_id': user_id}
-    )
-
-    statistics = [
-        daily_goal.scalar(),
-        todays_calories.scalar(),
-        todays_protein.scalar(),
-        todays_carb.scalar(),
-        todays_fat.scalar()
-    ]
 
     print('query result', statistics)
 
@@ -774,14 +686,6 @@ async def get_today_statistics(
         .split('.')[0]
     )
 
-    (
-        daily_calories_goal,
-        total_calories,
-        total_protein,
-        total_carb,
-        total_fat
-    ) = statistics
-
     print('start creating fig')
 
     fig = await today_statistic_plotter(
@@ -792,13 +696,8 @@ async def get_today_statistics(
         total_fat
     )
     print('finish creating fig')
-    output_buffer = io.BytesIO()
-    print('finish creating bytes')
-    fig.write_image(output_buffer, format="png")
-    print('finish write image into buffer')
-    output_buffer.seek(0)
 
-    file_bytes = output_buffer.read()
+    file_bytes = fig.read()
 
     document = BufferedInputFile(
         file=file_bytes, 
@@ -810,8 +709,6 @@ async def get_today_statistics(
     await message.reply_photo(
         photo=document
     )
-
-    await session.close()
 
 @form_router.message(
     F.text.endswith('get my info')
@@ -871,6 +768,7 @@ async def get_my_stats(
         group by user_id;
         """
     )
+    
     latest_goal = await sql_get_latest_daily_calories_goal(
         session=session, 
         user_id=user_id
