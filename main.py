@@ -388,7 +388,7 @@ async def sql_get_user_todays_statistics(
 
     print('query result', todays_statitics_result)
 
-    session.close()
+    await session.close()
     
     return todays_statitics_result
 
@@ -663,7 +663,7 @@ async def get_today_statistics(
         user_id=user_id
     )
 
-    session.close()
+    await session.close()
 
     print('sql_get_user_todays_statistics result:', statistics)
 
