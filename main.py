@@ -481,8 +481,18 @@ def response_to_dict(
             result = 'not correct result'
     return result
 
+async def today_statistic_plotter(
+    daily_calories_goal,
+    total_calories,
+    total_protein,
+    total_carb,
+    total_fat
+) -> go.Figure:
 
-def today_statistic_plotter(
+    # Use asyncio.to_thread to ensure the function runs asynchronously
+    return await asyncio.to_thread(_create_plot, daily_calories_goal, total_calories, total_protein, total_carb, total_fat)
+
+def _create_plot(
     daily_calories_goal,
     total_calories,
     total_protein,
@@ -774,7 +784,7 @@ async def get_today_statistics(
 
     print('start creating fig')
 
-    fig = today_statistic_plotter(
+    fig = await today_statistic_plotter(
         daily_calories_goal,
         total_calories,
         total_protein,
@@ -888,7 +898,7 @@ async def get_my_stats(
 
     print('start creating fig')
 
-    fig = today_statistic_plotter(
+    fig = await today_statistic_plotter(
         latest_goal,
         total_calories,
         total_protein,
