@@ -630,30 +630,13 @@ async def get_today_statistics(
         {'user_id': user_id}
     )
 
-
-    # results = results.fetchone()
-    
-    statistics = []
-    
-    for result in results.columns(
-        'daily_calories_goal', 'total_calories', 'total_protein', 'total_carb', 'total_fat'
-    ):
-    # statistics = [
-    #     results.daily_calories_goal.scalrar(),
-    #     results.total_calories.scalrar(),
-    #     results.total_protein.scalrar(),
-    #     results.total_carb.scalrar(),
-    #     results.total_fat.scalrar()
-    # ]
-        statistics.append(result)
-
-    results = statistics[0]
-
     print('query result', results)
-    
-    print(results)
 
-    is_any_result_empty = any([x is None for x in results])
+    statistics = results.fetchall()
+
+    print('query result fetchall', statistics)
+
+    is_any_result_empty = any([x is None for x in statistics])
 
     if is_any_result_empty == True:
         await message.reply(
@@ -675,8 +658,10 @@ async def get_today_statistics(
         total_protein,
         total_carb,
         total_fat
-    ) = results
+    ) = statistics
+    
     print('start creating fig')
+
     fig = today_statistic_plotter(
         daily_calories_goal,
         total_calories,
