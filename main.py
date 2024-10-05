@@ -632,7 +632,7 @@ async def get_today_statistics(
 
     await session.commit()
 
-    # engine.dispose()
+    engine.dispose()
 
     print('query result', results)
 
