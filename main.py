@@ -647,58 +647,58 @@ async def get_today_statistics(
 
         statistics = statistics[0]
 
-    print('query result fetchall', statistics, type(statistics), type(statistics[0]))
+        print('query result fetchall', statistics, type(statistics), type(statistics[0]))
 
-    is_any_result_empty = any([x is None for x in statistics])
+        is_any_result_empty = any([x is None for x in statistics])
 
-    if is_any_result_empty == True:
-        await message.reply(
-            text='Unfortunately there is no data'
+        if is_any_result_empty == True:
+            await message.reply(
+                text='Unfortunately there is no data'
+            )
+            return
+            
+        datetime_now = (
+            datetime
+            .datetime.now()
+            .astimezone()
+            .isoformat()
+            .split('.')[0]
         )
-        return
-        
-    datetime_now = (
-        datetime
-        .datetime.now()
-        .astimezone()
-        .isoformat()
-        .split('.')[0]
-    )
 
-    (
-        daily_calories_goal,
-        total_calories,
-        total_protein,
-        total_carb,
-        total_fat
-    ) = statistics
+        (
+            daily_calories_goal,
+            total_calories,
+            total_protein,
+            total_carb,
+            total_fat
+        ) = statistics
 
-    print('start creating fig')
+        print('start creating fig')
 
-    fig = today_statistic_plotter(
-        daily_calories_goal,
-        total_calories,
-        total_protein,
-        total_carb,
-        total_fat
-    )
-    print('finish creating fig')
-    output_buffer = io.BytesIO()
-    print('finish creating bytes')
-    fig.write_image(output_buffer, format="png")
-    print('finish write image into buffer')
-    output_buffer.seek(0)
+        fig = today_statistic_plotter(
+            daily_calories_goal,
+            total_calories,
+            total_protein,
+            total_carb,
+            total_fat
+        )
+        print('finish creating fig')
+        output_buffer = io.BytesIO()
+        print('finish creating bytes')
+        fig.write_image(output_buffer, format="png")
+        print('finish write image into buffer')
+        output_buffer.seek(0)
 
-    file_bytes = output_buffer.read()
+        file_bytes = output_buffer.read()
 
-    document = BufferedInputFile(
-        file=file_bytes, 
-        filename=f'{datetime_now}_statistics.png'
-    )
-    print('finish preparing buffered document')
-    await message.reply_photo(
-        photo=document
-    )
+        document = BufferedInputFile(
+            file=file_bytes, 
+            filename=f'{datetime_now}_statistics.png'
+        )
+        print('finish preparing buffered document')
+        await message.reply_photo(
+            photo=document
+        )
 
 
 @form_router.message(
