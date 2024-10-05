@@ -829,7 +829,7 @@ async def get_my_stats(
 
     # Save plot to a BytesIO buffer
     buf = io.BytesIO()
-    plt.savefig(buf, format='jpeg', quality=85)
+    plt.savefig(buf, format='jpeg')
     buf.seek(0)  # Rewind buffer to the beginning for reading
 
     # Close figure to avoid memory leaks
