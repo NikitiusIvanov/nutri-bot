@@ -634,7 +634,7 @@ async def get_today_statistics(
         results.total_calories,
         results.total_protein,
         results.total_carb,
-        results.total_fat,
+        results.total_fat
     ]
         # statistics.append(result)
 
