@@ -752,8 +752,6 @@ async def get_today_statistics(
 
     print('query result', statistics)
 
-    await session.close()
-
     is_any_result_empty = any([x is None for x in statistics])
 
     if is_any_result_empty == True:
