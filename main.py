@@ -486,12 +486,7 @@ async def today_statistic_plotter(
     total_carb,
     total_fat
 ) -> io.BytesIO:
-
-    # Use asyncio.to_thread to ensure the function runs asynchronously
-    return await asyncio.to_thread(_create_plot, daily_calories_goal, total_calories, total_protein, total_carb, total_fat)
-
-
-def _create_plot(daily_calories_goal, total_calories, total_protein, total_carb, total_fat) -> io.BytesIO:
+    
     # Create a figure and set size
     fig, axs = plt.subplots(1, 2, figsize=(8, 4))
 
@@ -652,7 +647,7 @@ async def get_today_statistics(
         {'user_id': user_id}
     )
 
-    statistics = list(statistics.fetchone())
+    statistics = [daily_calories_goal] + list(statistics.fetchone())
 
     print('my_stats: ', statistics)
 
@@ -661,6 +656,7 @@ async def get_today_statistics(
     )
 
     (
+        daily_calories_goal,
         total_calories,
         total_protein,
         total_carb,
@@ -697,17 +693,16 @@ async def get_today_statistics(
     )
     print('finish creating fig')
 
-    file_bytes = fig.read()
-
     document = BufferedInputFile(
-        file=file_bytes, 
+        file=fig.getvalue(), 
         filename=f'{datetime_now}_statistics.png'
     )
     
     print('finish preparing buffered document')
     
     await message.reply_photo(
-        photo=document
+        photo=document,
+        caption='Your today\'s nutrient statistics'
     )
 
 @form_router.message(
@@ -813,13 +808,8 @@ async def get_my_stats(
     )
 
     print('finish creating fig')
-    output_buffer = io.BytesIO()
-    print('finish creating bytes')
-    fig.write_image(output_buffer, format="png")
-    print('finish write image into buffer')
-    output_buffer.seek(0)
 
-    file_bytes = output_buffer.read()
+    file_bytes = fig.read()
 
     document = BufferedInputFile(
         file=file_bytes, 
