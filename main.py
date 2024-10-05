@@ -829,7 +829,7 @@ async def get_my_stats(
 
     # Save plot to a BytesIO buffer
     buf = io.BytesIO()
-    plt.savefig(buf, format='png')
+    plt.savefig(buf, format='jpeg', quality=85)
     buf.seek(0)  # Rewind buffer to the beginning for reading
 
     # Close figure to avoid memory leaks
@@ -856,8 +856,8 @@ async def get_my_stats(
     
     await message.reply_photo(
         photo=BufferedInputFile(
-            file=buf.read(), 
-            filename=f'{datetime_now}_statistics.png'
+            file=buf.getvalue(),
+            filename='today_statistics.jpeg'
         )
     )
 
