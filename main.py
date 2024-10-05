@@ -782,7 +782,8 @@ async def get_my_stats(
     await state.update_data(statistics=my_stats)
 
     await message.answer(
-        text=f'Your stats: {my_stats}'
+        text=f'Your stats: {my_stats} [▮▮▮▯▯▯▯▯▯▯] 30%',
+        parse_mode='Markdown'
     )
 
 
@@ -795,7 +796,9 @@ async def stats_ploting_and_send(
     session: AsyncSession
 ):
     print('Your stats is triggered, start creating fig')
+
     data = await state.get_data()
+
     statistics = data.get('statistics')
     (
         latest_goal,
