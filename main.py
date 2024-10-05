@@ -625,7 +625,7 @@ async def get_today_statistics(
     
     # async with session.begin():
 
-    results = await session.scalars(
+    results = await session.execute(
         query_todays_statitics,
         {'user_id': user_id}
     )
@@ -659,7 +659,7 @@ async def get_today_statistics(
         total_carb,
         total_fat
     ) = statistics
-    
+
     print('start creating fig')
 
     fig = today_statistic_plotter(
