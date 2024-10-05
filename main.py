@@ -861,6 +861,10 @@ async def get_my_stats(
         group by user_id;
         """
     )
+    latest_goal = await sql_get_latest_daily_calories_goal(
+        session=session, 
+        user_id=user_id
+    )
     
     my_stats = await session.execute(
         get_user_stats_query,
@@ -876,7 +880,6 @@ async def get_my_stats(
     )
 
     (
-        daily_calories_goal,
         total_calories,
         total_protein,
         total_carb,
@@ -886,7 +889,7 @@ async def get_my_stats(
     print('start creating fig')
 
     fig = today_statistic_plotter(
-        daily_calories_goal,
+        latest_goal,
         total_calories,
         total_protein,
         total_carb,
@@ -900,7 +903,7 @@ async def get_my_stats(
         .isoformat()
         .split('.')[0]
     )
-    
+
     print('finish creating fig')
     output_buffer = io.BytesIO()
     print('finish creating bytes')
