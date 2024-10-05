@@ -630,6 +630,10 @@ async def get_today_statistics(
         {'user_id': user_id}
     )
 
+    await session.commit()
+
+    # engine.dispose()
+
     print('query result', results)
 
     statistics = results.fetchall()
