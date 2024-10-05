@@ -875,6 +875,52 @@ async def get_my_stats(
         text=f'Your stats: {my_stats}'
     )
 
+    (
+        daily_calories_goal,
+        total_calories,
+        total_protein,
+        total_carb,
+        total_fat
+    ) = my_stats
+
+    print('start creating fig')
+
+    fig = today_statistic_plotter(
+        daily_calories_goal,
+        total_calories,
+        total_protein,
+        total_carb,
+        total_fat
+    )
+
+    datetime_now = (
+        datetime
+        .datetime.now()
+        .astimezone()
+        .isoformat()
+        .split('.')[0]
+    )
+    
+    print('finish creating fig')
+    output_buffer = io.BytesIO()
+    print('finish creating bytes')
+    fig.write_image(output_buffer, format="png")
+    print('finish write image into buffer')
+    output_buffer.seek(0)
+
+    file_bytes = output_buffer.read()
+
+    document = BufferedInputFile(
+        file=file_bytes, 
+        filename=f'{datetime_now}_statistics.png'
+    )
+    
+    print('finish preparing buffered document')
+    
+    await message.reply_photo(
+        photo=document
+    )
+
 
 @form_router.message(
     F.text.endswith('Edit My daily goal')
