@@ -298,39 +298,90 @@ async def sql_get_user_todays_statistics(
     session: AsyncSession,
     user_id: int,
 ):
-
-    query_todays_statitics = text(
+    query_daily_goal = text(
+        """
+        SELECT daily_calories_goal
+        FROM users
+        WHERE user_id = :user_id
+        ORDER BY timestamp DESC
+        LIMIT 1
+        """
+    )
+    query_todays_calories = text(
         """
         SELECT 
-            u.daily_calories_goal,
-            SUM(m.calories) AS total_calories,
-            SUM(m.protein) AS total_protein,
-            SUM(m.carb) AS total_carb,
-            SUM(m.fat) AS total_fat
+            SUM(m.calories) AS total_calories
         FROM meals m
-        JOIN (
-            select 
-                daily_calories_goal,
-                user_id
-            from users
-            where user_id = :user_id
-            order by timestamp DESC
-            limit 1
-        ) u ON m.user_id = u.user_id
         WHERE m.timestamp::date = CURRENT_DATE
         AND m.user_id = :user_id
-        GROUP BY u.daily_calories_goal;
+        GROUP BY m.user_id;
+        """
+    )
+    query_todays_protein = text(
+        """
+        SELECT 
+            SUM(m.protein) AS total_protein
+        FROM meals m
+        WHERE m.timestamp::date = CURRENT_DATE
+        AND m.user_id = :user_id
+        GROUP BY m.user_id;
+        """
+    )
+    query_todays_carb = text(
+        """
+        SELECT 
+            SUM(m.carb) AS total_carb
+        FROM meals m
+        WHERE m.timestamp::date = CURRENT_DATE
+        AND m.user_id = :user_id
+        GROUP BY m.user_id;
+        """
+    )
+    query_todays_fat = text(
+        """
+        SELECT 
+            SUM(m.fat) AS total_fat
+        FROM meals m
+        WHERE m.timestamp::date = CURRENT_DATE
+        AND m.user_id = :user_id
+        GROUP BY m.user_id;
         """
     )
     async with session.begin():
-        result = await session.execute(
-            query_todays_statitics,
+        daily_goal = await session.execute(
+            query_daily_goal,
             {'user_id': user_id}
         )
 
-        todays_statitics_result = result.fetchone()
+        todays_calories = await session.execute(
+            query_todays_calories,
+            {'user_id': user_id}
+        )
 
-        print('query result',todays_statitics_result)
+        todays_protein = await session.execute(
+            query_todays_protein,
+            {'user_id': user_id}
+        )
+
+        todays_carb = await session.execute(
+            query_todays_carb,
+            {'user_id': user_id}
+        )
+
+        todays_fat = await session.execute(
+            query_todays_fat,
+            {'user_id': user_id}
+        )
+
+        todays_statitics_result = [
+            daily_goal.scalar(),
+            todays_calories.scalar(),
+            todays_protein.scalar(),
+            todays_carb.scalar(),
+            todays_fat.scalar(),
+        ]
+
+        print('query result', todays_statitics_result)
     
         return todays_statitics_result
 
@@ -599,97 +650,63 @@ async def get_today_statistics(
     
     print('start sql_get_user_todays_statistics')
 
-    query_todays_statitics = text(
-        """
-        SELECT 
-            u.daily_calories_goal,
-            SUM(m.calories) AS total_calories,
-            SUM(m.protein) AS total_protein,
-            SUM(m.carb) AS total_carb,
-            SUM(m.fat) AS total_fat
-        FROM meals m
-        JOIN (
-            select 
-                daily_calories_goal,
-                user_id
-            from users
-            where user_id = :user_id
-            order by timestamp DESC
-            limit 1
-        ) u ON m.user_id = u.user_id
-        WHERE m.timestamp::date = CURRENT_DATE
-        AND m.user_id = :user_id
-        GROUP BY u.daily_calories_goal;
-        """
+    statistics = await sql_get_user_todays_statistics(
+        session=session,
+        user_id=user_id
     )
-    
-    async with session.begin():
 
-        results = await session.scalars(
-            query_todays_statitics,
-            {'user_id': user_id}
+    print('sql_get_user_todays_statistics result:', statistics)
+
+    is_any_result_empty = any([x is None for x in statistics])
+
+    if is_any_result_empty == True:
+        await message.reply(
+            text='Unfortunately there is no data'
         )
+        return
         
-        print('query result scalars', results)
+    datetime_now = (
+        datetime
+        .datetime.now()
+        .astimezone()
+        .isoformat()
+        .split('.')[0]
+    )
 
-        results = results.all()
+    (
+        daily_calories_goal,
+        total_calories,
+        total_protein,
+        total_carb,
+        total_fat
+    ) = statistics
 
-        print('results.all()', results)
+    print('start creating fig')
 
-        statistics = results[0]
+    fig = today_statistic_plotter(
+        daily_calories_goal,
+        total_calories,
+        total_protein,
+        total_carb,
+        total_fat
+    )
+    print('finish creating fig')
+    output_buffer = io.BytesIO()
+    print('finish creating bytes')
+    fig.write_image(output_buffer, format="png")
+    print('finish write image into buffer')
+    output_buffer.seek(0)
 
-        print('query result fetchall', statistics, type(statistics), type(statistics[0]))
+    file_bytes = output_buffer.read()
 
-        is_any_result_empty = any([x is None for x in statistics])
-
-        if is_any_result_empty == True:
-            await message.reply(
-                text='Unfortunately there is no data'
-            )
-            return
-            
-        datetime_now = (
-            datetime
-            .datetime.now()
-            .astimezone()
-            .isoformat()
-            .split('.')[0]
-        )
-
-        (
-            daily_calories_goal,
-            total_calories,
-            total_protein,
-            total_carb,
-            total_fat
-        ) = statistics
-
-        print('start creating fig')
-
-        fig = today_statistic_plotter(
-            daily_calories_goal,
-            total_calories,
-            total_protein,
-            total_carb,
-            total_fat
-        )
-        print('finish creating fig')
-        output_buffer = io.BytesIO()
-        print('finish creating bytes')
-        fig.write_image(output_buffer, format="png")
-        print('finish write image into buffer')
-        output_buffer.seek(0)
-
-        file_bytes = output_buffer.read()
-
-        document = BufferedInputFile(
-            file=file_bytes, 
-            filename=f'{datetime_now}_statistics.png'
-        )
-        print('finish preparing buffered document')
-        await message.reply_photo(
-            photo=document
-        )
+    document = BufferedInputFile(
+        file=file_bytes, 
+        filename=f'{datetime_now}_statistics.png'
+    )
+    print('finish preparing buffered document')
+    await message.reply_photo(
+        photo=document
+    )
 
 
 @form_router.message(
