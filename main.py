@@ -634,6 +634,10 @@ async def get_today_statistics(
 
     statistics = results.fetchall()
 
+    print('query result fetchall', statistics, type(statistics), type(statistics[0]))
+
+    statistics = statistics[0]
+
     print('query result fetchall', statistics)
 
     is_any_result_empty = any([x is None for x in statistics])
