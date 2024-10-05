@@ -623,20 +623,22 @@ async def get_today_statistics(
         """
     )
     
-    # async with session.begin():
+    async with session.begin():
 
-    results = await session.execute(
-        query_todays_statitics,
-        {'user_id': user_id}
-    )
+        results = await session.execute(
+            query_todays_statitics,
+            {'user_id': user_id}
+        )
 
-    await session.commit()
+        print('query result', results)
 
-    engine.dispose()
+        statistics = []
+        for column in results.columns():
+            statistics.append(column)
 
-    print('query result', results)
+        print('statistics', statistics)
 
-    statistics = results.fetchall()
+        statistics = statistics[0]
 
     print('query result fetchall', statistics, type(statistics), type(statistics[0]))
 
