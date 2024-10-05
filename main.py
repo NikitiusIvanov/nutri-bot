@@ -803,6 +803,39 @@ async def get_today_statistics(
 
     await session.close()
 
+@form_router.message(
+    F.text.endswith('get my info')
+)
+async def get_my_info(
+    message: Message, 
+    state: FSMContext,
+    session: AsyncSession
+):
+    user_id = message.from_user.id
+
+    get_user_info_query = text(
+        """
+        select *
+        from users
+        where user_id = :user_id
+        order by timestamp desc
+        limit 1
+        """
+    )
+    
+    my_info = await session.execute(
+        get_user_info_query,
+        {'user_id': user_id}
+    )
+
+    my_info = my_info.fetchone()
+
+    print('my_info: ', my_info)
+
+    await message.answer(
+        text=f'Your info: {my_info}'
+    )
+
 
 @form_router.message(
     F.text.endswith('Edit My daily goal')
