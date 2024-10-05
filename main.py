@@ -828,12 +828,51 @@ async def get_my_info(
         {'user_id': user_id}
     )
 
-    my_info = my_info.fetchone()
+    my_info = list(my_info.fetchone())
 
     print('my_info: ', my_info)
 
     await message.answer(
         text=f'Your info: {my_info}'
+    )
+
+@form_router.message(
+    F.text.endswith('get my stats')
+)
+async def get_my_stats(
+    message: Message, 
+    state: FSMContext,
+    session: AsyncSession
+):
+    user_id = message.from_user.id
+
+    get_user_stats_query = text(
+        """
+        select 
+            SUM(calories),
+            SUM(protein),
+            SUM(carb),
+            SUM(fat)
+        from meals
+        where 
+            user_id = :user_id
+            and 
+            timestamp::date = current_date
+        group by user_id;
+        """
+    )
+    
+    my_stats = await session.execute(
+        get_user_stats_query,
+        {'user_id': user_id}
+    )
+
+    my_stats = list(my_stats.fetchone())
+
+    print('my_stats: ', my_stats)
+
+    await message.answer(
+        text=f'Your stats: {my_stats}'
     )
 
 
