@@ -624,6 +624,7 @@ async def get_today_statistics(
         {'user_id': user_id}
     )
 
+
     # results = results.fetchone()
     
     statistics = []
@@ -632,17 +633,17 @@ async def get_today_statistics(
         'daily_calories_goal', 'total_calories', 'total_protein', 'total_carb', 'total_fat'
     ):
     # statistics = [
-    #     results.daily_calories_goal,
-    #     results.total_calories,
-    #     results.total_protein,
-    #     results.total_carb,
-    #     results.total_fat
+    #     results.daily_calories_goal.scalrar(),
+    #     results.total_calories.scalrar(),
+    #     results.total_protein.scalrar(),
+    #     results.total_carb.scalrar(),
+    #     results.total_fat.scalrar()
     # ]
         statistics.append(result)
 
-    print('query result', statistics)
+    results = statistics[0]
 
-    results = statistics
+    print('query result', results)
     
     print(results)
 
@@ -668,7 +669,7 @@ async def get_today_statistics(
         total_protein,
         total_carb,
         total_fat
-    ) = results[0]
+    ) = results
     print('start creating fig')
     fig = today_statistic_plotter(
         daily_calories_goal,
