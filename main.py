@@ -623,11 +623,20 @@ async def get_today_statistics(
         query_todays_statitics,
         {'user_id': user_id}
     )
-    statistics = []
-    for result in results.columns(
-        'daily_calories_goal', 'total_calories', 'total_protein', 'total_carb', 'total_fat'
-    ):
-        statistics.append(result._data)
+
+    results = results.fetchone()
+    
+    # for result in results.columns(
+    #     'daily_calories_goal', 'total_calories', 'total_protein', 'total_carb', 'total_fat'
+    # ):
+    statistics = [
+        results.daily_calories_goal,
+        results.total_calories,
+        results.total_protein,
+        results.total_carb,
+        results.total_fat,
+    ]
+        # statistics.append(result)
 
     print('query result', statistics)
 
