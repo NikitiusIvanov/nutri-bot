@@ -747,7 +747,7 @@ async def get_today_statistics(
         todays_calories.scalar(),
         todays_protein.scalar(),
         todays_carb.scalar(),
-        todays_fat.scalar(),
+        todays_fat.scalar()
     ]
 
     print('query result', statistics)
@@ -798,10 +798,14 @@ async def get_today_statistics(
         file=file_bytes, 
         filename=f'{datetime_now}_statistics.png'
     )
+    
     print('finish preparing buffered document')
+    
     await message.reply_photo(
         photo=document
     )
+
+    await session.close()
 
 
 @form_router.message(
