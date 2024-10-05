@@ -658,14 +658,101 @@ async def get_today_statistics(
     
     print('start sql_get_user_todays_statistics')
 
-    statistics = await sql_get_user_todays_statistics(
-        session=session,
-        user_id=user_id
+    # statistics = await sql_get_user_todays_statistics(
+    #     session=session,
+    #     user_id=user_id
+    # )
+    query_daily_goal = text(
+        """
+        SELECT daily_calories_goal
+        FROM users
+        WHERE user_id = :user_id
+        ORDER BY timestamp DESC
+        LIMIT 1
+        """
+    )
+    
+    query_todays_calories = text(
+        """
+        SELECT 
+            SUM(m.calories) AS total_calories
+        FROM meals m
+        WHERE m.timestamp::date = CURRENT_DATE
+        AND m.user_id = :user_id
+        GROUP BY m.user_id;
+        """
+    )
+    
+    query_todays_protein = text(
+        """
+        SELECT 
+            SUM(m.protein) AS total_protein
+        FROM meals m
+        WHERE m.timestamp::date = CURRENT_DATE
+        AND m.user_id = :user_id
+        GROUP BY m.user_id;
+        """
+    )
+    
+    query_todays_carb = text(
+        """
+        SELECT 
+            SUM(m.carb) AS total_carb
+        FROM meals m
+        WHERE m.timestamp::date = CURRENT_DATE
+        AND m.user_id = :user_id
+        GROUP BY m.user_id;
+        """
+    )
+    
+    query_todays_fat = text(
+        """
+        SELECT 
+            SUM(m.fat) AS total_fat
+        FROM meals m
+        WHERE m.timestamp::date = CURRENT_DATE
+        AND m.user_id = :user_id
+        GROUP BY m.user_id;
+        """
+    )
+    
+
+    daily_goal = await session.execute(
+        query_daily_goal,
+        {'user_id': user_id}
     )
 
-    await session.close()
+    todays_calories = await session.execute(
+        query_todays_calories,
+        {'user_id': user_id}
+    )
 
-    print('sql_get_user_todays_statistics result:', statistics)
+    todays_protein = await session.execute(
+        query_todays_protein,
+        {'user_id': user_id}
+    )
+
+    todays_carb = await session.execute(
+        query_todays_carb,
+        {'user_id': user_id}
+    )
+
+    todays_fat = await session.execute(
+        query_todays_fat,
+        {'user_id': user_id}
+    )
+
+    statistics = [
+        daily_goal.scalar(),
+        todays_calories.scalar(),
+        todays_protein.scalar(),
+        todays_carb.scalar(),
+        todays_fat.scalar(),
+    ]
+
+    print('query result', statistics)
+
+    await session.close()
 
     is_any_result_empty = any([x is None for x in statistics])
 
