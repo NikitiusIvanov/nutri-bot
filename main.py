@@ -779,7 +779,7 @@ async def get_my_stats(
 
     print('my_stats: ', my_stats)
 
-    await state.set_data(statistics=my_stats)
+    await state.update_data(statistics=my_stats)
 
     await message.answer(
         text=f'Your stats: {my_stats}'
