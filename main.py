@@ -640,13 +640,14 @@ async def get_today_statistics(
             'total_carb', 
             'total_fat'
         ):
+            print(column)
             statistics.append(column)
 
         print('statistics', statistics)
 
         statistics = statistics[0]
 
-    print('query result fetchall', statistics, type(statistics), type(statistics[0]))
+    print('query result fetchall', statistics, type(statistics), type(statistics))
 
     statistics = statistics[0]
 
