@@ -307,6 +307,7 @@ async def sql_get_user_todays_statistics(
         LIMIT 1
         """
     )
+    
     query_todays_calories = text(
         """
         SELECT 
@@ -317,6 +318,7 @@ async def sql_get_user_todays_statistics(
         GROUP BY m.user_id;
         """
     )
+    
     query_todays_protein = text(
         """
         SELECT 
@@ -327,6 +329,7 @@ async def sql_get_user_todays_statistics(
         GROUP BY m.user_id;
         """
     )
+    
     query_todays_carb = text(
         """
         SELECT 
@@ -337,6 +340,7 @@ async def sql_get_user_todays_statistics(
         GROUP BY m.user_id;
         """
     )
+    
     query_todays_fat = text(
         """
         SELECT 
@@ -347,43 +351,46 @@ async def sql_get_user_todays_statistics(
         GROUP BY m.user_id;
         """
     )
-    async with session.begin():
-        daily_goal = await session.execute(
-            query_daily_goal,
-            {'user_id': user_id}
-        )
-
-        todays_calories = await session.execute(
-            query_todays_calories,
-            {'user_id': user_id}
-        )
-
-        todays_protein = await session.execute(
-            query_todays_protein,
-            {'user_id': user_id}
-        )
-
-        todays_carb = await session.execute(
-            query_todays_carb,
-            {'user_id': user_id}
-        )
-
-        todays_fat = await session.execute(
-            query_todays_fat,
-            {'user_id': user_id}
-        )
-
-        todays_statitics_result = [
-            daily_goal.scalar(),
-            todays_calories.scalar(),
-            todays_protein.scalar(),
-            todays_carb.scalar(),
-            todays_fat.scalar(),
-        ]
-
-        print('query result', todays_statitics_result)
     
-        return todays_statitics_result
+
+    daily_goal = await session.execute(
+        query_daily_goal,
+        {'user_id': user_id}
+    )
+
+    todays_calories = await session.execute(
+        query_todays_calories,
+        {'user_id': user_id}
+    )
+
+    todays_protein = await session.execute(
+        query_todays_protein,
+        {'user_id': user_id}
+    )
+
+    todays_carb = await session.execute(
+        query_todays_carb,
+        {'user_id': user_id}
+    )
+
+    todays_fat = await session.execute(
+        query_todays_fat,
+        {'user_id': user_id}
+    )
+
+    todays_statitics_result = [
+        daily_goal.scalar(),
+        todays_calories.scalar(),
+        todays_protein.scalar(),
+        todays_carb.scalar(),
+        todays_fat.scalar(),
+    ]
+
+    print('query result', todays_statitics_result)
+
+    session.close()
+    
+    return todays_statitics_result
 
 
 async def check_user_exist(
@@ -637,7 +644,8 @@ def build_reply_keyboard() -> ReplyKeyboardMarkup:
     F.text.endswith('Get today\'s statisctics')
 )
 async def get_today_statistics(
-    message: Message, 
+    message: Message,
+    state: FSMContext,
     session: AsyncSession
 ):
 
@@ -654,6 +662,8 @@ async def get_today_statistics(
         session=session,
         user_id=user_id
     )
+
+    session.close()
 
     print('sql_get_user_todays_statistics result:', statistics)
 
