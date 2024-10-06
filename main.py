@@ -727,16 +727,15 @@ async def get_today_statistics(
     
     await message.reply(
         text=(
-            'Your today\'s calories statistics\n'
-            '-----------------------------------\n'
-            f'🧮 Calories: {total_calories}/{daily_calories_goal}\n' 
-            f'{calories_progress} {calories_percent}%\n\n'
-            'Your today\'s nutrients proportion\n'
-            '-----------------------------------\n'
-            f'{progresses[0]} 🍖 Protein {round(total_protein, 1)}g.\n' 
-            f'{progresses[1]} 🍬 Carbs   {round(total_carb, 1)}g.\n'
-            f'{progresses[2]} 🧈 Oils     {round(total_fat, 1)}g.' 
+            '*Your today\'s calories statistics:*\n'
+            f'🧮 Calories consumed / goal: *{int(total_calories)}* / *{int(daily_calories_goal)}*\n' 
+            f'{calories_progress} *{calories_percent}*%\n\n'
+            '*Your today\'s nutrients proportion:*\n'
+            f'{progresses[0]} 🍖 Protein *{round(total_protein, 1)}*g.\n' 
+            f'{progresses[1]} 🍬 Carbs   *{round(total_carb, 1)}*g.\n'
+            f'{progresses[2]} 🧈 Oils     *{round(total_fat, 1)}*g.' 
         ),
+        parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=build_reply_keyboard()
     )
 
