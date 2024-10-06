@@ -788,6 +788,7 @@ async def edit_daily_goal(
             text='Amount of kcall to set as daily goal must be a number',
             reply_markup=build_reply_keyboard(),
         )
+        await state.clear()
         return
     
     user_id = message.from_user.id
