@@ -68,8 +68,7 @@ engine = create_async_engine(
     DB_URL, 
     echo='debug', 
     echo_pool='debug', 
-    pool_size=20,
-    pool_recycle=2,
+    pool_size=20
 )
 session_maker = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -939,7 +938,7 @@ async def handle_photo(message: Message, state: FSMContext):
             parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=build_inline_keyboard(),
         )
-
+#TODO rewrite build_inline_keyboard to show at first step only two buttons: save and edit
 
 # Edit the results
 @form_router.callback_query(
