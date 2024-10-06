@@ -611,11 +611,6 @@ async def get_today_statistics(
     session: AsyncSession
 ):
 
-    await message.bot.send_chat_action(
-        message.chat.id, 
-        action=ChatAction.UPLOAD_DOCUMENT
-    )
-
     user_id = int(message.from_user.id)
     
     print('start sql_get_user_todays_statistics')
@@ -741,74 +736,8 @@ async def get_today_statistics(
             f'{progresses[0]} 🍖 Protein {round(total_protein, 1)}g.\n' 
             f'{progresses[1]} 🍬 Carbs   {round(total_carb, 1)}g.\n'
             f'{progresses[2]} 🧈 Oils     {round(total_fat, 1)}g.' 
-        )
-    )
-
-
-@form_router.message(
-    F.text.startswith('Your stats:')
-)
-async def stats_ploting_and_send(
-    message: Message, 
-    state: FSMContext,
-    session: AsyncSession
-):
-    print('Your stats is triggered, start creating fig')
-
-    data = await state.get_data()
-
-    statistics = data.get('statistics')
-    (
-        latest_goal,
-        total_calories,
-        total_protein,
-        total_carb,
-        total_fat
-    ) = statistics
-
-    print('start creating fig')
-    fig, axs = plt.subplots(1, 2, figsize=(8, 4))
-
-    # First plot: Calories
-    categories = ['Calories']
-    daily_goals = [latest_goal]
-    consumed = [total_calories]
-
-    # Plot daily goal and consumed calories
-    width = 0.3
-    axs[0].bar(categories, daily_goals, width=width, label='Daily goal', color='gray', alpha=0.6)
-    axs[0].bar(categories, consumed, width=width, label='Today\'s calories', color='green')
-
-    axs[0].set_title('Calories (kcal)')
-    axs[0].legend()
-
-    # Second plot: Macronutrients (protein, carb, fat)
-    nutrients = ['Protein', 'Carb', 'Fat']
-    values = [total_protein, total_carb, total_fat]
-    colors = ['brown', 'purple', 'orange']
-
-    axs[1].bar(nutrients, values, color=colors)
-    axs[1].set_title('Macronutrients (g)')
-
-    # Adjust layout
-    plt.tight_layout()
-
-    # Save plot to a BytesIO buffer
-    buf = io.BytesIO()
-    plt.savefig(buf, format='jpeg')
-    buf.seek(0)  # Rewind buffer to the beginning for reading
-
-    # Close figure to avoid memory leaks
-    plt.close(fig)
-    
-    print('finish creating fig')
-    await asyncio.sleep(0.5)
-    
-    await message.reply_photo(
-        photo=BufferedInputFile(
-            file=buf.getvalue(),
-            filename='today_statistics.jpeg'
-        )
+        ),
+        reply_markup=build_reply_keyboard()
     )
 
 
@@ -839,7 +768,8 @@ async def edit_daily_goal_request(
         )
 
     await message.answer(
-        text='Please set amount of kcall that You want to consume daily\n'
+        text='Please set amount of kcall that You want to consume daily\n',
+        reply_markup=build_reply_keyboard()
     )
 
 
@@ -945,7 +875,7 @@ async def recognize_nutrition(
             'and I\'ll send recognized nutritional facts to you back:'
         ),
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=ReplyKeyboardRemove(),
+        reply_markup=build_reply_keyboard(),
     )
 
 
@@ -955,8 +885,9 @@ async def handle_photo(message: Message, state: FSMContext):
     await message.answer(
         "⚡️ Thank you for sending the photo! \n"
         "⚙️ It in processing, please wait your results",
-        reply_markup=ReplyKeyboardRemove()
+        reply_markup=build_reply_keyboard()
     )
+
     await message.bot.send_chat_action(
         message.chat.id, 
         action=ChatAction.TYPING
@@ -984,12 +915,13 @@ async def handle_photo(message: Message, state: FSMContext):
 
     if result == 'no food' or result == 'not correct result':
         await message.answer(
-        text=(
-            '😔 Sorry I can not recognize food in your photo\n'
-            '🙏 Please try once again'
-        ),
-        parse_mode=ParseMode.MARKDOWN
-    )
+            text=(
+                '😔 Sorry I can not recognize food in your photo\n'
+                '🙏 Please try once again'
+            ),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=build_reply_keyboard()
+        )
     else:
         nutrition_facts = result
 
@@ -1002,12 +934,10 @@ async def handle_photo(message: Message, state: FSMContext):
         await state.update_data(last_name=message.from_user.last_name)
         await state.update_data(user_id=message.from_user.id)
         
-        reply_markup = build_inline_keyboard()
-        
         await message.answer(
             text=text,
             parse_mode=ParseMode.MARKDOWN_V2,
-            reply_markup=reply_markup,
+            reply_markup=build_inline_keyboard(),
         )
 
 
@@ -1035,7 +965,8 @@ async def edit_data(callback_query: CallbackQuery, state: FSMContext):
                     f'Current value of the {key} is: *{nutrition_facts[key]}* \n'
                     'Please send me a *correct* value of it'
                 ),
-                parse_mode=ParseMode.MARKDOWN
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=build_reply_keyboard()
             )
 
 
@@ -1066,9 +997,16 @@ async def check_corrections(message: Message, state: FSMContext):
     builder = InlineKeyboardBuilder()
 
     builder.row(
-        InlineKeyboardButton(text='Apply corrections', callback_data='apply_corrections'),
-        InlineKeyboardButton(text=f'Save without corrections', callback_data='Save to my meals')  
+        InlineKeyboardButton(
+            text='Apply corrections', 
+            callback_data='apply_corrections'
+        ),
+        InlineKeyboardButton(
+            text=f'Save without corrections', 
+            callback_data='Save to my meals'
+        )  
     )
+
     reply_markup = builder.as_markup()
 
     await message.answer(
@@ -1172,7 +1110,7 @@ async def write_nutrition_to_db(
             is_saved=True
         ),
         parse_mode=ParseMode.MARKDOWN_V2,
-        reply_markup=None
+        reply_markup=build_reply_keyboard()
     )
 
 BOT_SETTINGS_CHAPTER = None
