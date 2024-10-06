@@ -664,96 +664,81 @@ async def get_today_statistics(
             text='For today there is no data'
         )
         return
-    
-    fig = await today_statistic_plotter(
-        daily_calories_goal,
-        total_calories,
-        total_protein,
-        total_carb,
-        total_fat
-    )
 
-    await message.reply_photo(
-        photo=BufferedInputFile(
-            file=fig.read(), 
-            filename=f'statistics.jpg'
+    calories_percent = round(
+        100 * (
+            total_calories
+            /
+            daily_calories_goal
         )
     )
 
-    # calories_percent = round(
-    #     100 * (
-    #         total_calories
-    #         /
-    #         daily_calories_goal
-    #     )
-    # )
+    # Caclulate progress
+    progress_lenght = 20
+    proportion_lenght = 10
+    filled_block = '▓'
+    empty_block = '░'
 
-    # # Caclulate progress
-    # progress_lenght = 20
-    # proportion_lenght = 10
-    # filled_block = '▓'
-    # empty_block = '░'
+    percentage = round(
+        min(
+            progress_lenght, 
+            (
+                100 * (
+                    total_calories
+                    /
+                    daily_calories_goal
+                )
+            ) 
+            // 
+            (
+                100 // progress_lenght
+            )
+        )
+    )
 
-    # percentage = round(
-    #     min(
-    #         progress_lenght, 
-    #         (
-    #             100 * (
-    #                 total_calories
-    #                 /
-    #                 daily_calories_goal
-    #             )
-    #         ) 
-    #         // 
-    #         (
-    #             100 // progress_lenght
-    #         )
-    #     )
-    # )
-
-    # calories_progress = (filled_block * percentage) + ((progress_lenght - percentage) * empty_block)
+    calories_progress = (filled_block * percentage) + ((progress_lenght - percentage) * empty_block)
     
-    # normalize_nutrients_coefs = np.round(
-    #     (
-    #         100
-    #         * 
-    #         (
-    #             np.array([total_protein, total_carb, total_fat])
-    #             /
-    #             max(total_protein, total_carb, total_fat) 
-    #         )
-    #     ) // (100 // proportion_lenght)
-    # ).astype(int)
+    normalize_nutrients_coefs = np.round(
+        (
+            100
+            * 
+            (
+                np.array([total_protein, total_carb, total_fat])
+                /
+                max(total_protein, total_carb, total_fat) 
+            )
+        ) // (100 // proportion_lenght)
+    ).astype(int)
 
-    # normalize_nutrients_coefs
+    normalize_nutrients_coefs
 
-    # progresses = []
+    progresses = []
 
-    # for nutrient, proportion in zip(
-    #     [total_protein, total_carb, total_fat],
-    #     normalize_nutrients_coefs
-    # ):
+    for nutrient, proportion in zip(
+        [total_protein, total_carb, total_fat],
+        normalize_nutrients_coefs
+    ):
 
-    #     progresses.append(
-    #         (filled_block * proportion) + ((proportion_lenght - proportion) * empty_block)
-    #     )
+        progresses.append(
+            (filled_block * proportion) + ((proportion_lenght - proportion) * empty_block)
+        )
 
-    # print('finish preparing stats')
+    print('finish preparing stats')
     
-    # await message.reply(
-    #     text=(
-    #         'Your today\'s calories statistics\n'
-    #         '-----------------------------------\n'
-    #         f'🧮 Calories: {total_calories}/{daily_calories_goal}\n' 
-    #         f'{calories_progress} {calories_percent}%\n\n'
-    #         'Your today\'s nutrients proportion\n'
-    #         '-----------------------------------\n'
-    #         f'{progresses[0]} 🍖 Protein {round(total_protein, 1)}g.\n' 
-    #         f'{progresses[1]} 🍬 Carbs   {round(total_carb, 1)}g.\n'
-    #         f'{progresses[2]} 🧈 Oils     {round(total_fat, 1)}g.' 
-    #     ),
-    #     reply_markup=build_reply_keyboard()
-    # )
+    await message.reply(
+        text=(
+            'Your today\'s calories statistics\n'
+            '-----------------------------------\n'
+            f'🧮 Calories: {total_calories}/{daily_calories_goal}\n' 
+            f'{calories_progress} {calories_percent}%\n\n'
+            'Your today\'s nutrients proportion\n'
+            '-----------------------------------\n'
+            f'{progresses[0]} 🍖 Protein {round(total_protein, 1)}g.\n' 
+            f'{progresses[1]} 🍬 Carbs   {round(total_carb, 1)}g.\n'
+            f'{progresses[2]} 🧈 Oils     {round(total_fat, 1)}g.' 
+        ),
+        reply_markup=build_reply_keyboard()
+    )
 
 
 @form_router.message(
