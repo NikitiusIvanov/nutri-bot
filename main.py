@@ -729,26 +729,6 @@ async def get_today_statistics(
         )
 
     print('finish preparing stats')
-
-    nutrients_weights_strings_len = np.array(
-        [
-            len(str(total_protein)),
-            len(str(total_carb)),
-            len(str(total_fat))
-        ],
-        dtype=int
-    )
-
-    nutrients_weights_strings_len_max = np.max(
-        nutrients_weights_strings_len
-    )
-
-    nutrients_weights_strings_len_max
-
-    len_corrections = [
-        ' ' * int(nutrients_weights_strings_len_max - x)
-        for x in nutrients_weights_strings_len
-    ]
     
     await message.reply(
         text=(
@@ -758,9 +738,9 @@ async def get_today_statistics(
             f'{calories_progress} {calories_percent}%\n\n'
             'Your today\'s nutrients proportion\n'
             '-----------------------------------\n'
-            f'🍖 Protein {round(total_protein, 1)}{len_corrections[0]}g. {progresses[0]} \n' 
-            f'🍬 Carbs   {round(total_carb, 1)}{len_corrections[1]}g. {progresses[1]} \n'
-            f'🧈 Oils    {round(total_fat, 1)}{len_corrections[2]}g. {progresses[2]} ' 
+            f'{progresses[0]} 🍖 Protein {round(total_protein, 1)}g.\n' 
+            f'{progresses[1]} 🍬 Carbs   {round(total_carb, 1)}g.\n'
+            f'{progresses[2]} 🧈 Oils     {round(total_fat, 1)}g.' 
         )
     )
 
