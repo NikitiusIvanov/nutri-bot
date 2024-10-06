@@ -648,7 +648,7 @@ async def get_today_statistics(
         {'user_id': user_id}
     )
 
-    statistics = [daily_calories_goal] + list(statistics.fetchone())
+    statistics = np.round([daily_calories_goal] + list(statistics.fetchone()), 1)
 
     print('my_stats: ', statistics)
 
@@ -683,8 +683,6 @@ async def get_today_statistics(
     proportion_lenght = 10
     filled_block = '▓'
     empty_block = '░'
-    # filled_block = '▮'
-    # empty_block = '▯'
 
     percentage = round(
         min(
@@ -734,9 +732,9 @@ async def get_today_statistics(
 
     nutrients_weights_strings_len = np.array(
         [
-            len(str(round(total_protein, 1))),
-            len(str(round(total_carb, 1))),
-            len(str(round(total_fat, 1)))
+            len(str(total_protein)),
+            len(str(total_carb)),
+            len(str(total_fat))
         ],
         dtype=int
     )
