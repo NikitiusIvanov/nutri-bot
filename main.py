@@ -684,6 +684,7 @@ async def get_today_statistics(
 
     # Caclulate progress
     progress_lenght = 20
+    proportion_lenght = 10
     filled_block = '▓'
     empty_block = '░'
 
@@ -715,7 +716,7 @@ async def get_today_statistics(
                 /
                 max(total_protein, total_carb, total_fat) 
             )
-        ) // (100 // progress_lenght)
+        ) // (100 // proportion_lenght)
     ).astype(int)
 
     normalize_nutrients_coefs
@@ -728,7 +729,7 @@ async def get_today_statistics(
     ):
 
         progresses.append(
-            (filled_block * proportion) + ((progress_lenght - proportion) * empty_block)
+            (filled_block * proportion) + ((proportion_lenght - proportion) * empty_block)
         )
 
     print('finish preparing stats')
@@ -737,13 +738,13 @@ async def get_today_statistics(
         text=(
             'Your today\'s calories statistics\n'
             '-----------------------------------\n'
-            f'Calories: {total_calories}/{daily_calories_goal}\n' 
+            f'🧮 Calories: {total_calories}/{daily_calories_goal}\n' 
             f'{calories_progress} {calories_percent}%\n\n'
             'Your today\'s nutrients proportion\n'
             '-----------------------------------\n'
-            f'Protein {round(total_protein, 1)}g.: {progresses[0]}\n' 
-            f'Carbs {round(total_carb, 1)}g.: {progresses[1]}\n'
-            f'Oils {round(total_fat, 1)}g.: {progresses[2]}' 
+            f'🍖 Protein {round(total_protein, 1)}g.: {progresses[0]}\n' 
+            f'🍬 Carbs {round(total_carb, 1)}g.: {progresses[1]}\n'
+            f'🧈 Oils {round(total_fat, 1)}g.: {progresses[2]}' 
         )
     )
 
