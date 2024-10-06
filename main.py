@@ -595,7 +595,7 @@ def build_reply_keyboard() -> ReplyKeyboardMarkup:
     builder.row(
         KeyboardButton(text='🍽 Recognize nutrition'),
         KeyboardButton(text='📝 Edit My daily goal'),
-        KeyboardButton(text='📊 Get today\'s statisctics'),
+        KeyboardButton(text='📊 Get today\'s statistics'),
     )
     builder.adjust(2)
 
@@ -603,7 +603,7 @@ def build_reply_keyboard() -> ReplyKeyboardMarkup:
 
     
 @form_router.message(
-    F.text.endswith('Get today\'s statisctics')
+    F.text.endswith('Get today\'s statistics')
 )
 async def get_today_statistics(
     message: Message,
@@ -664,126 +664,87 @@ async def get_today_statistics(
         total_fat
     ) = statistics
 
-
     print('query result', statistics)
 
     is_any_result_empty = any([x is None for x in statistics])
 
     if is_any_result_empty == True:
         await message.reply(
-            text='Unfortunately there is no data'
+            text='For today there is no data'
         )
         return
-        
-    datetime_now = (
-        datetime
-        .datetime.now()
-        .astimezone()
-        .isoformat()
-        .split('.')[0]
+
+    calories_percent = round(
+        100 * (
+            total_calories
+            /
+            daily_calories_goal
+        )
     )
 
-    print('start creating fig')
+    # Caclulate progress
+    progress_lenght = 20
+    filled_block = '▓'
+    empty_block = '░'
 
-    fig = await today_statistic_plotter(
-        daily_calories_goal,
-        total_calories,
-        total_protein,
-        total_carb,
-        total_fat
+    percentage = round(
+        min(
+            progress_lenght, 
+            (
+                100 * (
+                    total_calories
+                    /
+                    daily_calories_goal
+                )
+            ) 
+            // 
+            (
+                100 // progress_lenght
+            )
+        )
     )
-    print('finish creating fig')
 
-    document = BufferedInputFile(
-        file=fig.getvalue(), 
-        filename=f'{datetime_now}_statistics.png'
-    )
+    calories_progress = (filled_block * percentage) + ((progress_lenght - percentage) * empty_block)
     
-    print('finish preparing buffered document')
+    normalize_nutrients_coefs = np.round(
+        (
+            100
+            * 
+            (
+                np.array([total_protein, total_carb, total_fat])
+                /
+                max(total_protein, total_carb, total_fat) 
+            )
+        ) // (100 // progress_lenght)
+    ).astype(int)
+
+    normalize_nutrients_coefs
+
+    progresses = []
+
+    for nutrient, proportion in zip(
+        [total_protein, total_carb, total_fat],
+        normalize_nutrients_coefs
+    ):
+
+        progresses.append(
+            (filled_block * proportion) + ((progress_lenght - proportion) * empty_block)
+        )
+
+    print('finish preparing stats')
     
-    await message.reply_photo(
-        photo=document,
-        caption='Your today\'s nutrient statistics'
-    )
-
-@form_router.message(
-    F.text.endswith('get my info')
-)
-async def get_my_info(
-    message: Message, 
-    state: FSMContext,
-    session: AsyncSession
-):
-    user_id = message.from_user.id
-
-    get_user_info_query = text(
-        """
-        select *
-        from users
-        where user_id = :user_id
-        order by timestamp desc
-        limit 1
-        """
-    )
-    
-    my_info = await session.execute(
-        get_user_info_query,
-        {'user_id': user_id}
-    )
-
-    my_info = list(my_info.fetchone())
-
-    print('my_info: ', my_info)
-
-    await message.answer(
-        text=f'Your info: {my_info}'
-    )
-
-@form_router.message(
-    F.text.endswith('get my stats')
-)
-async def get_my_stats(
-    message: Message, 
-    state: FSMContext,
-    session: AsyncSession
-):
-    user_id = message.from_user.id
-
-    get_user_stats_query = text(
-        """
-        select 
-            SUM(calories),
-            SUM(protein),
-            SUM(carb),
-            SUM(fat)
-        from meals
-        where 
-            user_id = :user_id
-            and 
-            timestamp::date = current_date
-        group by user_id;
-        """
-    )
-    
-    latest_goal = await sql_get_latest_daily_calories_goal(
-        session=session, 
-        user_id=user_id
-    )
-    
-    my_stats = await session.execute(
-        get_user_stats_query,
-        {'user_id': user_id}
-    )
-
-    my_stats = [latest_goal] + list(my_stats.fetchone())
-
-    print('my_stats: ', my_stats)
-
-    await state.update_data(statistics=my_stats)
-
-    await message.answer(
-        text=f'Your stats: {my_stats} [▮▮▮▯▯▯▯▯▯▯] 30%',
-        parse_mode='Markdown'
+    await message.reply(
+        text=(
+            'Your today\'s calories statistics\n'
+            '-----------------------------------'
+            f'Calories: {total_calories}/{daily_calories_goal}\n' 
+            f'{calories_progress} {calories_percent}%\n\n'
+            'Your today\'s nutrients proportion\n'
+            '-----------------------------------'
+            f'Protein {total_protein}g.: {progresses[0]}\n' 
+            f'Carbs {total_carb}g.: {progresses[1]}\n'
+            f'Oils {total_fat}g.: {progresses[0]}' 
+        )
     )
 
 
