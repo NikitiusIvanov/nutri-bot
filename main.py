@@ -735,7 +735,7 @@ async def get_today_statistics(
             f'{progresses[1]} 🍬 Carbs   *{round(total_carb, 1)}*g.\n'
             f'{progresses[2]} 🧈 Oils     *{round(total_fat, 1)}*g.' 
         ),
-        parse_mode=ParseMode.MARKDOWN_V2,
+        parse_mode=ParseMode.MARKDOWN,
         reply_markup=build_reply_keyboard()
     )
 
