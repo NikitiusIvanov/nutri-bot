@@ -652,10 +652,6 @@ async def get_today_statistics(
 
     print('my_stats: ', statistics)
 
-    await message.answer(
-        text=f'Your stats: {statistics}'
-    )
-
     (
         daily_calories_goal,
         total_calories,
@@ -685,8 +681,10 @@ async def get_today_statistics(
     # Caclulate progress
     progress_lenght = 20
     proportion_lenght = 10
-    filled_block = '▓'
-    empty_block = '░'
+    # filled_block = '▓'
+    # empty_block = '░'
+    filled_block = '▮'
+    empty_block = '▯'
 
     percentage = round(
         min(
@@ -742,9 +740,9 @@ async def get_today_statistics(
             f'{calories_progress} {calories_percent}%\n\n'
             'Your today\'s nutrients proportion\n'
             '-----------------------------------\n'
-            f'🍖 Protein {round(total_protein, 1)}g.: {progresses[0]}\n' 
-            f'🍬 Carbs {round(total_carb, 1)}g.: {progresses[1]}\n'
-            f'🧈 Oils {round(total_fat, 1)}g.: {progresses[2]}' 
+            f'🍖 Protein {round(total_protein, 1)}g. {progresses[0]} \n' 
+            f'🍬 Carbs {round(total_carb, 1)}g.   {progresses[1]} \n'
+            f'🧈 Oils {round(total_fat, 1)}g.    {progresses[2]} ' 
         )
     )
 
