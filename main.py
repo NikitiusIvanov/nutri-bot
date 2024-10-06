@@ -1110,7 +1110,7 @@ async def write_nutrition_to_db(
             is_saved=True
         ),
         parse_mode=ParseMode.MARKDOWN_V2,
-        reply_markup=build_reply_keyboard()
+        reply_markup=build_inline_keyboard(is_saved=True)
     )
 
 BOT_SETTINGS_CHAPTER = None
