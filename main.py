@@ -681,10 +681,10 @@ async def get_today_statistics(
     # Caclulate progress
     progress_lenght = 20
     proportion_lenght = 10
-    # filled_block = '▓'
-    # empty_block = '░'
-    filled_block = '▮'
-    empty_block = '▯'
+    filled_block = '▓'
+    empty_block = '░'
+    # filled_block = '▮'
+    # empty_block = '▯'
 
     percentage = round(
         min(
@@ -731,6 +731,26 @@ async def get_today_statistics(
         )
 
     print('finish preparing stats')
+
+    nutrients_weights_strings_len = np.array(
+        [
+            len(str(round(total_protein, 1))),
+            len(str(round(total_carb, 1))),
+            len(str(round(total_fat, 1)))
+        ],
+        dtype=int
+    )
+
+    nutrients_weights_strings_len_max = np.max(
+        nutrients_weights_strings_len
+    )
+
+    nutrients_weights_strings_len_max
+
+    len_corrections = [
+        ' ' * int(nutrients_weights_strings_len_max - x)
+        for x in nutrients_weights_strings_len
+    ]
     
     await message.reply(
         text=(
@@ -740,9 +760,9 @@ async def get_today_statistics(
             f'{calories_progress} {calories_percent}%\n\n'
             'Your today\'s nutrients proportion\n'
             '-----------------------------------\n'
-            f'🍖 Protein {round(total_protein, 1)}g. {progresses[0]} \n' 
-            f'🍬 Carbs {round(total_carb, 1)}g.   {progresses[1]} \n'
-            f'🧈 Oils {round(total_fat, 1)}g.    {progresses[2]} ' 
+            f'🍖 Protein {round(total_protein, 1)}{len_corrections[0]}g. {progresses[0]} \n' 
+            f'🍬 Carbs   {round(total_carb, 1)}{len_corrections[1]}g.   {progresses[1]} \n'
+            f'🧈 Oils    {round(total_fat, 1)}{len_corrections[2]}g.    {progresses[2]} ' 
         )
     )
 
