@@ -761,8 +761,8 @@ async def get_today_statistics(
             'Your today\'s nutrients proportion\n'
             '-----------------------------------\n'
             f'🍖 Protein {round(total_protein, 1)}{len_corrections[0]}g. {progresses[0]} \n' 
-            f'🍬 Carbs   {round(total_carb, 1)}{len_corrections[1]}g.   {progresses[1]} \n'
-            f'🧈 Oils    {round(total_fat, 1)}{len_corrections[2]}g.    {progresses[2]} ' 
+            f'🍬 Carbs   {round(total_carb, 1)}{len_corrections[1]}g. {progresses[1]} \n'
+            f'🧈 Oils    {round(total_fat, 1)}{len_corrections[2]}g. {progresses[2]} ' 
         )
     )
 
