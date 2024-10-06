@@ -736,14 +736,14 @@ async def get_today_statistics(
     await message.reply(
         text=(
             'Your today\'s calories statistics\n'
-            '-----------------------------------'
+            '-----------------------------------\n'
             f'Calories: {total_calories}/{daily_calories_goal}\n' 
             f'{calories_progress} {calories_percent}%\n\n'
             'Your today\'s nutrients proportion\n'
-            '-----------------------------------'
-            f'Protein {total_protein}g.: {progresses[0]}\n' 
-            f'Carbs {total_carb}g.: {progresses[1]}\n'
-            f'Oils {total_fat}g.: {progresses[0]}' 
+            '-----------------------------------\n'
+            f'Protein {round(total_protein, 1)}g.: {progresses[0]}\n' 
+            f'Carbs {round(total_carb, 1)}g.: {progresses[1]}\n'
+            f'Oils {round(total_fat, 1)}g.: {progresses[2]}' 
         )
     )
 
@@ -1176,12 +1176,6 @@ async def write_nutrition_to_db(
         ),
         parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=None
-    )
-
-    await callback_query.message.answer(
-        text='🆒 Your meal info succefully saved!',
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=build_reply_keyboard()
     )
 
 BOT_SETTINGS_CHAPTER = None
