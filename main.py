@@ -31,7 +31,8 @@ from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    ReplyKeyboardMarkup
+    ReplyKeyboardMarkup,
+    InputFile
 )
 from aiogram.utils.keyboard import (
     ReplyKeyboardBuilder,
@@ -496,8 +497,8 @@ async def today_statistic_plotter(
     total_protein,
     total_carb,
     total_fat
-) -> io.BytesIO:
-    
+) -> tuple[io.BytesIO, plt.figure]:
+    plt.style.use('fast')
     # Create a figure and set size
     fig, axs = plt.subplots(1, 2, figsize=(8, 4))
 
@@ -527,13 +528,10 @@ async def today_statistic_plotter(
 
     # Save plot to a BytesIO buffer
     buf = io.BytesIO()
-    plt.savefig(buf, format='jpg')
+    plt.savefig(buf, format='png')
     buf.seek(0)  # Rewind buffer to the beginning for reading
 
-    # Close figure to avoid memory leaks
-    plt.close(fig)
-
-    return buf
+    return buf, fig
 
 
 def message_lenght(message_text: str | None):
@@ -624,7 +622,7 @@ def build_reply_keyboard() -> ReplyKeyboardMarkup:
 @form_router.message(
     F.text.endswith('Get today\'s statistics')
 )
-async def get_today_statistics(
+async def get_today_statistics_p_bar(
     message: Message,
     state: FSMContext,
     session: AsyncSession
@@ -757,6 +755,87 @@ async def get_today_statistics(
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=build_reply_keyboard()
     )
+
+
+@form_router.message(
+    F.text.endswith('Get today\'s statistics')
+)
+async def get_today_statistics(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession
+):
+    print('start sql_get_user_todays_statistics')
+
+    user_id = message.from_user.id
+
+    get_user_stats_query = text(
+        """
+        select 
+            SUM(calories),
+            SUM(protein),
+            SUM(carb),
+            SUM(fat)
+        from meals
+        where 
+            user_id = :user_id
+            and 
+            timestamp::date = current_date
+        group by user_id;
+        """
+    )
+    
+    daily_calories_goal = await sql_get_latest_daily_calories_goal(
+        session=session, 
+        user_id=user_id
+    )
+    
+    statistics = await session.execute(
+        get_user_stats_query,
+        {'user_id': user_id}
+    )
+
+    statistics = np.round([daily_calories_goal] + list(statistics.fetchone()), 1)
+
+    print('my_stats: ', statistics)
+
+    (
+        daily_calories_goal,
+        total_calories,
+        total_protein,
+        total_carb,
+        total_fat
+    ) = statistics
+
+    print('query result', statistics)
+
+    is_any_result_empty = any([x is None for x in statistics])
+
+    if is_any_result_empty == True:
+        await message.reply(
+            text='For today there is no data'
+        )
+        return
+
+    img, fig = today_statistic_plotter(
+        daily_calories_goal,
+        total_calories,
+        total_protein,
+        total_carb,
+        total_fat
+    )
+    
+    await message.reply(
+        text=(
+            '*Your today\'s calories statistics:*\n'
+            f'🧮 Calories consumed / goal: *{int(total_calories)}* / *{int(daily_calories_goal)}*\n'
+        ),
+        photo=InputFile(img, filename='daily_nutrition_plot.png')
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=build_reply_keyboard()
+    )
+
+    plt.close(fig)
 
 
 @form_router.message(
