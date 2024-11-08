@@ -307,99 +307,33 @@ async def sql_get_user_todays_statistics(
     session: AsyncSession,
     user_id: int,
 ):
-    query_daily_goal = text(
-        """
-        SELECT daily_calories_goal
-        FROM users
-        WHERE user_id = :user_id
-        ORDER BY timestamp DESC
-        LIMIT 1
-        """
-    )
-    
-    query_todays_calories = text(
+
+    query_todays_nutrition = text(
         """
         SELECT 
-            SUM(m.calories) AS total_calories
-        FROM meals m
-        WHERE m.timestamp::date = CURRENT_DATE
-        AND m.user_id = :user_id
-        GROUP BY m.user_id;
+            SUM(calories),
+            SUM(protein),
+            SUM(carb),
+            SUM(fat)
+        FROM meals
+        WHERE 
+            timestamp::date = CURRENT_DATE
+            AND 
+            user_id = :user_id
+        GROUP BY user_id;
         """
     )
-    
-    query_todays_protein = text(
-        """
-        SELECT 
-            SUM(m.protein) AS total_protein
-        FROM meals m
-        WHERE m.timestamp::date = CURRENT_DATE
-        AND m.user_id = :user_id
-        GROUP BY m.user_id;
-        """
-    )
-    
-    query_todays_carb = text(
-        """
-        SELECT 
-            SUM(m.carb) AS total_carb
-        FROM meals m
-        WHERE m.timestamp::date = CURRENT_DATE
-        AND m.user_id = :user_id
-        GROUP BY m.user_id;
-        """
-    )
-    
-    query_todays_fat = text(
-        """
-        SELECT 
-            SUM(m.fat) AS total_fat
-        FROM meals m
-        WHERE m.timestamp::date = CURRENT_DATE
-        AND m.user_id = :user_id
-        GROUP BY m.user_id;
-        """
-    )
-    
 
-    daily_goal = await session.execute(
-        query_daily_goal,
+    todays_nutrition_result = await session.execute(
+        query_todays_nutrition,
         {'user_id': user_id}
     )
 
-    todays_calories = await session.execute(
-        query_todays_calories,
-        {'user_id': user_id}
-    )
+    todays_nutrition = todays_nutrition_result.first()
 
-    todays_protein = await session.execute(
-        query_todays_protein,
-        {'user_id': user_id}
-    )
-
-    todays_carb = await session.execute(
-        query_todays_carb,
-        {'user_id': user_id}
-    )
-
-    todays_fat = await session.execute(
-        query_todays_fat,
-        {'user_id': user_id}
-    )
-
-    todays_statitics_result = [
-        daily_goal.scalar(),
-        todays_calories.scalar(),
-        todays_protein.scalar(),
-        todays_carb.scalar(),
-        todays_fat.scalar(),
-    ]
-
-    print('query result', todays_statitics_result)
-
-    await session.close()
+    logging.debug('nutrition query result', todays_nutrition)
     
-    return todays_statitics_result
+    return todays_nutrition
 
 
 async def check_user_exist(
@@ -768,34 +702,18 @@ async def get_today_statistics(
     print('start sql_get_user_todays_statistics')
 
     user_id = message.from_user.id
-
-    get_user_stats_query = text(
-        """
-        select 
-            SUM(calories),
-            SUM(protein),
-            SUM(carb),
-            SUM(fat)
-        from meals
-        where 
-            user_id = :user_id
-            and 
-            timestamp::date = current_date
-        group by user_id;
-        """
-    )
     
     daily_calories_goal = await sql_get_latest_daily_calories_goal(
         session=session, 
         user_id=user_id
     )
-    
-    statistics = await session.execute(
-        get_user_stats_query,
-        {'user_id': user_id}
+
+    statistics = await sql_get_user_todays_statistics(
+        session=session, 
+        user_id=user_id
     )
 
-    statistics = np.round([daily_calories_goal] + list(statistics.fetchone()), 1)
+    statistics = np.round([daily_calories_goal] + list(statistics), 1)
 
     print('my_stats: ', statistics)
 
@@ -806,8 +724,6 @@ async def get_today_statistics(
         total_carb,
         total_fat
     ) = statistics
-
-    print('query result', statistics)
 
     is_any_result_empty = any([x is None for x in statistics])
 
@@ -828,8 +744,8 @@ async def get_today_statistics(
     await message.answer_photo(
         photo=BufferedInputFile(img_buf.read(), filename='daily_nutrition_plot.png'),
         caption=(
-            '*Your today\'s calories statistics:*\n'
-            f'🧮 Calories consumed / goal: *{int(total_calories)}* / *{int(daily_calories_goal)}*\n'
+            'Your today\'s calories statistics:\n'
+            f'🧮 Calories consumed / goal: {int(total_calories)} / {int(daily_calories_goal)}\n'
         ),
         reply_markup=build_reply_keyboard()
     )
