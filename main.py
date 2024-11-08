@@ -817,7 +817,7 @@ async def get_today_statistics(
         )
         return
 
-    img, fig = today_statistic_plotter(
+    img, fig = await today_statistic_plotter(
         daily_calories_goal,
         total_calories,
         total_protein,
