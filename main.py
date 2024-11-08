@@ -709,17 +709,19 @@ async def get_today_statistics(
         user_id=user_id
     )
 
-    statistics = np.round([daily_calories_goal] + list(statistics), 1)
+    logging.debug(f'daily_calories_goal: {daily_calories_goal}')
+    logging.debug(f'daily_calories_goal: {statistics}')
 
-    print('my_stats: ', statistics)
+    statistics = np.round(statistics, 1)
 
     (
-        daily_calories_goal,
         total_calories,
         total_protein,
         total_carb,
         total_fat
     ) = statistics
+
+    daily_calories_goal = daily_calories_goal[0]
 
     is_any_result_empty = any([x is None for x in statistics])
 
