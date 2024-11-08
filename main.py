@@ -619,142 +619,142 @@ def build_reply_keyboard() -> ReplyKeyboardMarkup:
     return builder.as_markup()
 
     
-@form_router.message(
-    F.text.endswith('Get today\'s statistics')
-)
-async def get_today_statistics_p_bar(
-    message: Message,
-    state: FSMContext,
-    session: AsyncSession
-):
+# @form_router.message(
+#     F.text.endswith('Get today\'s statistics')
+# )
+# async def get_today_statistics_p_bar(
+#     message: Message,
+#     state: FSMContext,
+#     session: AsyncSession
+# ):
 
-    user_id = int(message.from_user.id)
+#     user_id = int(message.from_user.id)
     
-    print('start sql_get_user_todays_statistics')
+#     print('start sql_get_user_todays_statistics')
 
-    user_id = message.from_user.id
+#     user_id = message.from_user.id
 
-    get_user_stats_query = text(
-        """
-        select 
-            SUM(calories),
-            SUM(protein),
-            SUM(carb),
-            SUM(fat)
-        from meals
-        where 
-            user_id = :user_id
-            and 
-            timestamp::date = current_date
-        group by user_id;
-        """
-    )
+#     get_user_stats_query = text(
+#         """
+#         select 
+#             SUM(calories),
+#             SUM(protein),
+#             SUM(carb),
+#             SUM(fat)
+#         from meals
+#         where 
+#             user_id = :user_id
+#             and 
+#             timestamp::date = current_date
+#         group by user_id;
+#         """
+#     )
     
-    daily_calories_goal = await sql_get_latest_daily_calories_goal(
-        session=session, 
-        user_id=user_id
-    )
+#     daily_calories_goal = await sql_get_latest_daily_calories_goal(
+#         session=session, 
+#         user_id=user_id
+#     )
     
-    statistics = await session.execute(
-        get_user_stats_query,
-        {'user_id': user_id}
-    )
+#     statistics = await session.execute(
+#         get_user_stats_query,
+#         {'user_id': user_id}
+#     )
 
-    statistics = np.round([daily_calories_goal] + list(statistics.fetchone()), 1)
+#     statistics = np.round([daily_calories_goal] + list(statistics.fetchone()), 1)
 
-    print('my_stats: ', statistics)
+#     print('my_stats: ', statistics)
 
-    (
-        daily_calories_goal,
-        total_calories,
-        total_protein,
-        total_carb,
-        total_fat
-    ) = statistics
+#     (
+#         daily_calories_goal,
+#         total_calories,
+#         total_protein,
+#         total_carb,
+#         total_fat
+#     ) = statistics
 
-    print('query result', statistics)
+#     print('query result', statistics)
 
-    is_any_result_empty = any([x is None for x in statistics])
+#     is_any_result_empty = any([x is None for x in statistics])
 
-    if is_any_result_empty == True:
-        await message.reply(
-            text='For today there is no data'
-        )
-        return
+#     if is_any_result_empty == True:
+#         await message.reply(
+#             text='For today there is no data'
+#         )
+#         return
 
-    calories_percent = round(
-        100 * (
-            total_calories
-            /
-            daily_calories_goal
-        )
-    )
+#     calories_percent = round(
+#         100 * (
+#             total_calories
+#             /
+#             daily_calories_goal
+#         )
+#     )
 
-    # Caclulate progress
-    progress_lenght = 20
-    proportion_lenght = 10
-    filled_block = '▓'
-    empty_block = '░'
+#     # Caclulate progress
+#     progress_lenght = 20
+#     proportion_lenght = 10
+#     filled_block = '▓'
+#     empty_block = '░'
 
-    percentage = round(
-        min(
-            progress_lenght, 
-            (
-                100 * (
-                    total_calories
-                    /
-                    daily_calories_goal
-                )
-            ) 
-            // 
-            (
-                100 // progress_lenght
-            )
-        )
-    )
+#     percentage = round(
+#         min(
+#             progress_lenght, 
+#             (
+#                 100 * (
+#                     total_calories
+#                     /
+#                     daily_calories_goal
+#                 )
+#             ) 
+#             // 
+#             (
+#                 100 // progress_lenght
+#             )
+#         )
+#     )
 
-    calories_progress = (filled_block * percentage) + ((progress_lenght - percentage) * empty_block)
+#     calories_progress = (filled_block * percentage) + ((progress_lenght - percentage) * empty_block)
     
-    normalize_nutrients_coefs = np.round(
-        (
-            100
-            * 
-            (
-                np.array([total_protein, total_carb, total_fat])
-                /
-                max(total_protein, total_carb, total_fat) 
-            )
-        ) // (100 // proportion_lenght)
-    ).astype(int)
+#     normalize_nutrients_coefs = np.round(
+#         (
+#             100
+#             * 
+#             (
+#                 np.array([total_protein, total_carb, total_fat])
+#                 /
+#                 max(total_protein, total_carb, total_fat) 
+#             )
+#         ) // (100 // proportion_lenght)
+#     ).astype(int)
 
-    normalize_nutrients_coefs
+#     normalize_nutrients_coefs
 
-    progresses = []
+#     progresses = []
 
-    for nutrient, proportion in zip(
-        [total_protein, total_carb, total_fat],
-        normalize_nutrients_coefs
-    ):
+#     for nutrient, proportion in zip(
+#         [total_protein, total_carb, total_fat],
+#         normalize_nutrients_coefs
+#     ):
 
-        progresses.append(
-            (filled_block * proportion) + ((proportion_lenght - proportion) * empty_block)
-        )
+#         progresses.append(
+#             (filled_block * proportion) + ((proportion_lenght - proportion) * empty_block)
+#         )
 
-    print('finish preparing stats')
+#     print('finish preparing stats')
     
-    await message.reply(
-        text=(
-            '*Your today\'s calories statistics:*\n'
-            f'🧮 Calories consumed / goal: *{int(total_calories)}* / *{int(daily_calories_goal)}*\n' 
-            f'{calories_progress} *{calories_percent}*%\n\n'
-            '*Your today\'s nutrients proportion:*\n'
-            f'{progresses[0]} 🍖 Protein *{round(total_protein, 1)}*g.\n' 
-            f'{progresses[1]} 🍬 Carbs   *{round(total_carb, 1)}*g.\n'
-            f'{progresses[2]} 🧈 Oils     *{round(total_fat, 1)}*g.' 
-        ),
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=build_reply_keyboard()
-    )
+#     await message.reply(
+#         text=(
+#             '*Your today\'s calories statistics:*\n'
+#             f'🧮 Calories consumed / goal: *{int(total_calories)}* / *{int(daily_calories_goal)}*\n' 
+#             f'{calories_progress} *{calories_percent}*%\n\n'
+#             '*Your today\'s nutrients proportion:*\n'
+#             f'{progresses[0]} 🍖 Protein *{round(total_protein, 1)}*g.\n' 
+#             f'{progresses[1]} 🍬 Carbs   *{round(total_carb, 1)}*g.\n'
+#             f'{progresses[2]} 🧈 Oils     *{round(total_fat, 1)}*g.' 
+#         ),
+#         parse_mode=ParseMode.MARKDOWN,
+#         reply_markup=build_reply_keyboard()
+#     )
 
 
 @form_router.message(
