@@ -817,7 +817,7 @@ async def get_today_statistics(
         )
         return
 
-    img, fig = await today_statistic_plotter(
+    img_buf, fig = await today_statistic_plotter(
         daily_calories_goal,
         total_calories,
         total_protein,
@@ -826,7 +826,7 @@ async def get_today_statistics(
     )
 
     await message.answer_photo(
-        photo=BufferedInputFile(img, filename='daily_nutrition_plot.png'),
+        photo=BufferedInputFile(img_buf.read(), filename='daily_nutrition_plot.png'),
         caption=(
             '*Your today\'s calories statistics:*\n'
             f'🧮 Calories consumed / goal: *{int(total_calories)}* / *{int(daily_calories_goal)}*\n'
@@ -843,7 +843,7 @@ async def get_today_statistics(
     #     parse_mode=ParseMode.MARKDOWN,
     #     reply_markup=build_reply_keyboard()
     # )
-
+    img_buf.close()
     plt.close(fig)
 
 
