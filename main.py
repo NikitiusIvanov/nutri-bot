@@ -1227,7 +1227,7 @@ async def main() -> None:
     dp = Dispatcher()
 
     dp.include_router(form_router)
-    dp.startup.register(on_webhook_startup)
+    dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)
 
     dp.update.middleware(
