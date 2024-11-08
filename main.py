@@ -172,7 +172,7 @@ async def sql_get_latest_daily_calories_goal(
     )
     result = result.scalar()
 
-    session.rollback()
+    await session.rollback()
 
     return result
 
@@ -333,7 +333,7 @@ async def sql_get_user_todays_statistics(
 
     todays_nutrition = todays_nutrition_result.first()
 
-    session.rollback()
+    await session.rollback()
 
     logging.debug('nutrition query result', todays_nutrition)
     
@@ -717,7 +717,7 @@ async def get_today_statistics(
         user_id=user_id
     )
 
-    session.rollback()
+    await session.rollback()
 
     statistics = np.round([daily_calories_goal] + list(statistics), 1)
 
