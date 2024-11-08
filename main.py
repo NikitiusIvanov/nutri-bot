@@ -170,11 +170,8 @@ async def sql_get_latest_daily_calories_goal(
         """), 
         {'user_id': user_id}
     )
-    result = result.scalar()
 
-    await session.rollback()
-
-    return result
+    return result.fetchall()
 
 
 async def sql_write_new_user(
@@ -330,14 +327,8 @@ async def sql_get_user_todays_statistics(
         query_todays_nutrition,
         {'user_id': user_id}
     )
-
-    todays_nutrition = todays_nutrition_result.first()
-
-    await session.rollback()
-
-    logging.debug('nutrition query result', todays_nutrition)
     
-    return todays_nutrition
+    return todays_nutrition_result.fetchall()
 
 
 async def check_user_exist(
@@ -707,6 +698,7 @@ async def get_today_statistics(
 
     user_id = message.from_user.id
     
+
     daily_calories_goal = await sql_get_latest_daily_calories_goal(
         session=session, 
         user_id=user_id
@@ -716,8 +708,6 @@ async def get_today_statistics(
         session=session, 
         user_id=user_id
     )
-
-    await session.rollback()
 
     statistics = np.round([daily_calories_goal] + list(statistics), 1)
 
