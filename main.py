@@ -1,16 +1,18 @@
-import asyncio
 import io
+import asyncio
 import sys
 import os
 import datetime
-import json
 from typing import Any, Awaitable, Callable, Dict
 import numpy as np
-import pandas as pd
 import logging
-import google.generativeai as genai
+import matplotlib.pyplot as plt
+
+# Google Generative AI imports
+import vertexai
 from vertexai.generative_models import GenerativeModel, Image
 from aiohttp import web
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.sql import text
 
@@ -18,29 +20,25 @@ from aiogram import BaseMiddleware, Bot, Dispatcher, Router
 from aiogram.client.default import DefaultBotProperties
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiogram.enums import ParseMode, ChatAction
-from aiogram.filters import CommandStart, Filter
+from aiogram.filters import CommandStart
 from aiogram import F
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     TelegramObject,
-    BufferedInputFile,
     KeyboardButton,
     Message,
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    ReplyKeyboardMarkup,
-    ReplyKeyboardRemove,
+    ReplyKeyboardMarkup
 )
 from aiogram.utils.keyboard import (
     ReplyKeyboardBuilder,
     InlineKeyboardBuilder
 )
-
 from aiogram.client.session.aiohttp import AiohttpSession
-import matplotlib.pyplot as plt
-import logging
+
 
 # get db credentials
 # Db Configuration
@@ -70,7 +68,12 @@ engine = create_async_engine(
     echo_pool='debug', 
     pool_size=20
 )
-session_maker = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+session_maker = async_sessionmaker(
+    bind=engine, 
+    class_=AsyncSession, 
+    expire_on_commit=False
+)
 
 # get the credentials from env vars
 BOT_TOKEN = os.getenv('BOT_TOKEN')
@@ -85,11 +88,19 @@ WEB_SERVER_PORT = 8080
 WEBHOOK_PATH = "/webhook"
       
 ####################### google AI API settings #######################    
-genai.configure(api_key=GOOGLE_AI_API_KEY)
-model = GenerativeModel("gemini-1.5-pro-preview-0514")
-generation_config = {
-    'temperature': 0,
-}
+# Settings for vertexai initialization
+PROJECT_ID = os.getenv('PROJECT_ID')
+REGION = os.getenv('REGION')
+
+if PROJECT_ID is not None:
+    vertexai.init(project=PROJECT_ID, location=REGION)
+
+    generation_config = {
+        'temperature': 0,
+    }
+
+    model = GenerativeModel("gemini-1.5-pro-002", generation_config=generation_config)
+
 
 ####################### Set prompt for tasks #######################
 PROMPT = """
@@ -264,6 +275,7 @@ async def sql_check_daily_goal_exists(
     result = result.fetchone()
 
     return result[0]
+
 
 async def sql_get_daily_goal(
     session: AsyncSession,
@@ -523,6 +535,14 @@ async def today_statistic_plotter(
 
     return buf
 
+
+def message_lenght(message_text: str | None):
+    """Returns lenght of the recieved message
+    """
+    if message_text is not None:
+        return len(message_text)
+    else:
+        return None
 
 ####################### Bot logic #######################
 BOT_LOGIC_CHAPTER = None
@@ -864,6 +884,7 @@ async def welcome(
 
     await check_user_exist(message=message, session=session)
 
+
 @form_router.message(F.text.endswith('Recognize nutrition'))
 async def recognize_nutrition(
     message 
@@ -938,9 +959,11 @@ async def handle_photo(message: Message, state: FSMContext):
             parse_mode=ParseMode.MARKDOWN_V2,
             reply_markup=build_inline_keyboard(),
         )
+        await state.update_data(name=message.text)
 #TODO rewrite build_inline_keyboard to show at first step only two buttons: save and edit
 
-# Edit the results
+
+# Edit the results 
 @form_router.callback_query(
     F.data.in_({
         'name',
@@ -1112,6 +1135,7 @@ async def write_nutrition_to_db(
         reply_markup=build_inline_keyboard(is_saved=True)
     )
 
+
 BOT_SETTINGS_CHAPTER = None
 #################################### Bot settings ####################################
 # Middleware to inject session into handlers
@@ -1132,8 +1156,7 @@ class DataBaseSession(BaseMiddleware):
 
 
 # Set the webhook for recieving updates in your url wia HTTPS POST with JSONs
-async def on_startup(bot: Bot) -> None:
-    
+async def on_webhook_startup(bot: Bot) -> None:
     # If you have a self-signed SSL certificate, then you will need to send a public
     # certificate to Telegram, for this case we'll use google cloud run service so
     # it not required to send sertificates
@@ -1142,19 +1165,24 @@ async def on_startup(bot: Bot) -> None:
     )
 
 
+async def on_startup(bot: Bot) -> None:
+    
+    await bot.delete_webhook()
+
+
 # Close the engine when shutting down
 async def on_shutdown(bot: Bot):
     await engine.dispose()
 
 
-def main() -> None:
+def webhook_main() -> None:
     # Dispatcher is a root router
     dp = Dispatcher()
 
     dp.include_router(form_router)
 
     # Register startup hook to initialize webhook
-    dp.startup.register(on_startup)
+    dp.startup.register(on_webhook_startup)
     dp.shutdown.register(on_shutdown)
 
     dp.update.middleware(
@@ -1190,6 +1218,28 @@ def main() -> None:
     web.run_app(app, host=WEB_SERVER_HOST, port=WEB_SERVER_PORT)
 
 
+async def main() -> None:
+    # Dispatcher is a root router
+    dp = Dispatcher()
+
+    dp.include_router(form_router)
+    dp.startup.register(on_webhook_startup)
+    dp.shutdown.register(on_shutdown)
+
+    dp.update.middleware(
+        DataBaseSession(session_pool=session_maker)
+    )
+
+    # Initialize Bot instance with default bot properties 
+    # which will be passed to all API calls
+    bot = Bot(
+        token=BOT_TOKEN, 
+        default=DefaultBotProperties()
+    )
+
+    await dp.start_polling(bot)
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-    main()
+    asyncio.run(main())
