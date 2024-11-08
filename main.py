@@ -1318,7 +1318,11 @@ async def main() -> None:
 
     await dp.start_polling(bot)
 
+    app = web.Application()
+    web.run_app(app, host=WEB_SERVER_HOST, port=WEB_SERVER_PORT)
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-    asyncio.run(main())
+    # asyncio.run(main())
+    webhook_main()
