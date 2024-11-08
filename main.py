@@ -32,7 +32,7 @@ from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
-    InputFile
+    BufferedInputFile
 )
 from aiogram.utils.keyboard import (
     ReplyKeyboardBuilder,
@@ -824,16 +824,25 @@ async def get_today_statistics(
         total_carb,
         total_fat
     )
-    
-    await message.reply(
-        text=(
+
+    await message.answer_photo(
+        photo=BufferedInputFile(img, filename='daily_nutrition_plot.png'),
+        caption=(
             '*Your today\'s calories statistics:*\n'
             f'🧮 Calories consumed / goal: *{int(total_calories)}* / *{int(daily_calories_goal)}*\n'
         ),
-        photo=InputFile(img, filename='daily_nutrition_plot.png'),
-        parse_mode=ParseMode.MARKDOWN,
         reply_markup=build_reply_keyboard()
     )
+    
+    # await message.reply(
+    #     text=(
+    #         '*Your today\'s calories statistics:*\n'
+    #         f'🧮 Calories consumed / goal: *{int(total_calories)}* / *{int(daily_calories_goal)}*\n'
+    #     ),
+    #     photo=BufferedInputFile(img, filename='daily_nutrition_plot.png'),
+    #     parse_mode=ParseMode.MARKDOWN,
+    #     reply_markup=build_reply_keyboard()
+    # )
 
     plt.close(fig)
 
