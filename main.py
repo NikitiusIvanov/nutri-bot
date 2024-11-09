@@ -1038,6 +1038,10 @@ async def edit_data(callback_query: CallbackQuery, state: FSMContext):
         if key in edit_request:
             await state.update_data(key_to_edit=key)
             await state.set_state(Form.edit_request)
+            await callback_query.message.edit_reply_markup(
+                text=callback_query.message.message_id,
+                reply_markup=None,
+            )
             await callback_query.message.answer(
                 text=(
                     f'Current value of the {key} is: *{nutrition_facts[key]}* \n'
