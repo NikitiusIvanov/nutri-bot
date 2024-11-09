@@ -1,20 +1,27 @@
 import io
-import asyncio
 import sys
 import os
 import datetime
 from typing import Any, Awaitable, Callable, Dict
 import numpy as np
 import logging
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt 
+
+import asyncio
+from aiohttp import web
 
 # Google Generative AI imports
 import vertexai
 from vertexai.generative_models import GenerativeModel, Image
-from aiohttp import web
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.sql import text
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    create_async_engine,
+    async_sessionmaker, 
+)
+
+from sqlalchemy import sql
 
 from aiogram import BaseMiddleware, Bot, Dispatcher, Router
 from aiogram.client.default import DefaultBotProperties
@@ -32,97 +39,132 @@ from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
-    BufferedInputFile
 )
 from aiogram.utils.keyboard import (
     ReplyKeyboardBuilder,
     InlineKeyboardBuilder
 )
 from aiogram.client.session.aiohttp import AiohttpSession
-from concurrent.futures import ThreadPoolExecutor
-executor = ThreadPoolExecutor(max_workers=4)
 
-# get db credentials
-# Db Configuration
-POSTGRES_USER=os.getenv('POSTGRES_USER')
-POSTGRES_DB=os.getenv('POSTGRES_DB')
-POSTGRES_PASSWORD=os.getenv('POSTGRES_PASSWORD')
-POSTGRES_HOST=os.getenv('POSTGRES_HOST')
-POSTGRES_PORT='5432'
+####################### GLOBAL_INITS_CHAPTER #######################
+GLOBAL_INITS_CHAPTER = None
+# Settings for logging
+logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+try:
+    is_local_debug = bool(os.getenv('IS_LOCAL_DEBUG'))
+except:
+    is_local_debug = False
+logging.info(f'IS_LOCAL_DEBUG: {is_local_debug}')
 
-DB_CONFIG = {
-    "host": POSTGRES_HOST,
-    "database": POSTGRES_DB,
-    "user": POSTGRES_USER,
-    "password": POSTGRES_PASSWORD
-}
-
-DB_URL = (
-    'postgresql+asyncpg://'
-    f'{POSTGRES_USER}:{POSTGRES_PASSWORD}'
-    f'@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}'
-)
-
-# Create async engine and session pool
-engine = create_async_engine(
-    DB_URL, 
-    echo='debug', 
-    echo_pool='debug', 
-    pool_size=20
-)
-
-session_maker = async_sessionmaker(
-    bind=engine, 
-    class_=AsyncSession, 
-    expire_on_commit=False
-)
-
-# get the credentials from env vars
-BOT_TOKEN = os.getenv('BOT_TOKEN')
-GOOGLE_AI_API_KEY = os.getenv('GOOGLE_AI_API_KEY')
-
-BASE_WEBHOOK_URL = os.getenv('BASE_WEBHOOK_URL')
+# Bot token can be obtained via https://t.me/BotFather
+bot_token = os.getenv('BOT_TOKEN')
+# Your CG Run instance url
+base_webhook_url = os.getenv('BASE_WEBHOOK_URL')
 # Webserver settings
-WEB_SERVER_HOST = "0.0.0.0"
+web_server_host = "0.0.0.0"
 # Port for incoming request
-WEB_SERVER_PORT = 8080
+web_server_port = 8080
 # Path to webhook route, on which Telegram will send requests
-WEBHOOK_PATH = "/webhook"
-      
-####################### google AI API settings #######################    
-# Settings for vertexai initialization
-PROJECT_ID = os.getenv('PROJECT_ID')
-REGION = os.getenv('REGION')
+webhook_path = "/webhook"
 
-if PROJECT_ID is not None:
-    vertexai.init(project=PROJECT_ID, location=REGION)
+def init_vertex_gemini(model_name: str) -> GenerativeModel | None:
+    """Getting env variables for vertexai initialization
+    * assume existing varialbes in env:
+        * PROJECT_ID # your CG project ID
+        * REGION # your GC project region
+    
+    * if env variable PROJECT_ID is None: return None
+    (exclusion for performing unit tests on github Pytest)
+    """
+    PROJECT_ID = os.getenv('PROJECT_ID')
+    REGION = os.getenv('REGION')
 
-    generation_config = {
-        'temperature': 0,
-    }
+    if PROJECT_ID is not None: 
+        vertexai.init(project=PROJECT_ID, location=REGION)
 
-    model = GenerativeModel("gemini-1.5-pro-002", generation_config=generation_config)
+        generation_config = {
+            'temperature': 0,
+        }
+
+        model = GenerativeModel(
+            model_name=model_name, 
+            generation_config=generation_config
+        )
+    else:
+        model = None
+
+    return model
 
 
-####################### Set prompt for tasks #######################
-PROMPT = """
-You are a helpful AI assistant that helps people collect data about their diets 
-by food photos that their sending to you.
-Recognize food in this picture and
-give your estimation of the:
- * total amount of calories in kkal, 
- * mass in grams, 
- * fat in grams,
- * carbonhydrates in grams
+def create_asyncpg_session_pool() -> AsyncSession:
+    """
+    * creates an async session with pool of the connections
+    for further registering in a Middleware for injection
+    connections into handlers
+    * assume there is in env variables:
+        * POSTGRES_USER
+        * POSTGRES_DB
+        * POSTGRES_PASSWORD
+        * POSTGRES_HOST
+    """
+    # get db credentials
+    # Db Configuration
+    POSTGRES_USER=os.getenv('POSTGRES_USER')
+    POSTGRES_DB=os.getenv('POSTGRES_DB')
+    POSTGRES_PASSWORD=os.getenv('POSTGRES_PASSWORD')
+    POSTGRES_HOST=os.getenv('POSTGRES_HOST')
+    POSTGRES_PORT='5432'
 
-If you reconize there is no food in the photo 
+    DB_URL = (
+        'postgresql+asyncpg://'
+        f'{POSTGRES_USER}:{POSTGRES_PASSWORD}'
+        f'@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}'
+    )
+
+    # Create async engine and session pool
+    engine = create_async_engine(
+        DB_URL, 
+        echo='debug', 
+        echo_pool='debug', 
+        pool_size=20
+    )
+
+    session_pool = async_sessionmaker(
+        bind=engine, 
+        class_=AsyncSession, 
+        expire_on_commit=False
+    )
+
+    return session_pool
+
+
+# Iinit with "gemini-1.5-pro-002"
+model = init_vertex_gemini(model_name="gemini-1.5-pro-002")
+
+session_pool = create_asyncpg_session_pool()
+
+# Prompt for food nutrition recognition by photo
+prompt = """
+You are a helpful AI assistant that helps people collect data about their diets
+by food photos that they send to you.
+Recognize food in this picture and give your estimation of the:
+* total amount of calories in kcal,
+* mass in grams,
+* fat in grams,
+* carbohydrates in grams
+
+
+If you recognize there is no food in the photo
 write your answer by following format and nothing more:
+
 
 no food
 
-If you reconize some food on the photo use low-high borders 
+
+If you recognize some food on the photo use low-high borders
 for you estimation of the nutritional facts
 and write your answer by following format and nothing more:
+
 
 dish_name: apple pie
 calories: 230, 240
@@ -132,8 +174,9 @@ carb: 22, 25
 protein: 24, 25
 """
 
-####################### Data processing #######################
+####################### DATA_PROCESSING_CHAPTER #######################
 DATA_PROCESSING_CHAPTER = None
+
 async def sql_check_if_user_exists(
     session: AsyncSession, 
     user_id: int,
@@ -149,30 +192,12 @@ async def sql_check_if_user_exists(
     """
 
     result = await session.execute(
-        text("SELECT EXISTS (SELECT 1 FROM users WHERE user_id = :user_id)"), 
+        sql.text("SELECT EXISTS (SELECT 1 FROM users WHERE user_id = :user_id)"), 
         {'user_id': user_id}
     )
     result = result.fetchone()
 
     return result[0]
-
-
-async def sql_get_latest_daily_calories_goal(
-    session: AsyncSession, 
-    user_id: int,
-):
-    result = await session.execute(
-        text("""
-        SELECT daily_calories_goal
-        FROM users
-        WHERE user_id = :user_id
-        ORDER BY timestamp DESC
-        LIMIT 1
-        """), 
-        {'user_id': user_id}
-    )
-
-    return result.fetchall()
 
 
 async def sql_write_new_user(
@@ -182,7 +207,7 @@ async def sql_write_new_user(
     """
     """
     await session.execute(
-        text("""
+        sql.text("""
         INSERT INTO users (
             first_name,
             last_name,
@@ -228,7 +253,7 @@ async def sql_write_nutrition(
     """
     """
     await session.execute(
-        text("""
+        sql.text("""
         INSERT INTO meals (
             user_id,
             dish_name,
@@ -265,7 +290,7 @@ async def sql_check_daily_goal_exists(
     session: AsyncSession, 
     user_id: int,
 ) -> bool:
-    query = text("""
+    query = sql.text("""
     SELECT EXISTS (
         SELECT 1 FROM users 
         WHERE user_id = :user_id
@@ -279,28 +304,21 @@ async def sql_check_daily_goal_exists(
 
 
 async def sql_get_daily_goal(
-    session: AsyncSession,
+    session: AsyncSession, 
     user_id: int,
 ):
-    query_daily_goal = text(
-        """
+    result = await session.execute(
+        sql.text("""
         SELECT daily_calories_goal
         FROM users
         WHERE user_id = :user_id
         ORDER BY timestamp DESC
         LIMIT 1
-        """
-    )
-
-    result = await session.execute(
-        query_daily_goal,
+        """), 
         {'user_id': user_id}
     )
-    daily_calories_goal_result = result.scalar()
 
-    print('daily goal query result', daily_calories_goal_result)
-    
-    return daily_calories_goal_result
+    return result.fetchall()
 
 
 async def sql_get_user_todays_statistics(
@@ -308,7 +326,7 @@ async def sql_get_user_todays_statistics(
     user_id: int,
 ):
 
-    query_todays_nutrition = text(
+    query_todays_nutrition = sql.text(
         """
         SELECT 
             SUM(calories),
@@ -332,7 +350,7 @@ async def sql_get_user_todays_statistics(
     return todays_nutrition_result.fetchall()
 
 
-async def check_user_exist(
+async def write_user_if_not_exist(
     message: Message,
     session: AsyncSession,
 ):
@@ -421,6 +439,28 @@ def response_to_dict(
     return result
 
 
+def text_from_nutrition_facts(
+    nutrition_facts: dict[str, str|float],
+    is_saved: bool=False,
+) -> str:
+    text = (
+        '*Here is my estimation of the nutrition facts about your photo:*\n'
+        f'🍽 Dish name: *{nutrition_facts["dish_name"]}*\n'
+        f'🧮 Total calories: *{round(nutrition_facts["calories"], 2)}* kcal\n'
+        f'⚖️ Total mass: *{round(nutrition_facts["mass"], 2)}* g\n'
+        f'🍖 Proteins mass: *{round(nutrition_facts["protein"], 2)}* g\n'
+        f'🍬 Carbonhydrates mass: *{round(nutrition_facts["carb"], 2)}* g\n'
+        f'🧈 Fats mass: *{round(nutrition_facts["fat"], 2)}* g'
+    )
+    if is_saved == True:
+        text+=(
+            '\n✅ Saved to your meals'
+        )
+    
+    return text.replace('.', '\.')
+
+#TODO have to solve problem with delaying 
+# and switch to send stats with plots
 def today_statistic_plotter(
     daily_calories_goal,
     total_calories,
@@ -472,9 +512,12 @@ def message_lenght(message_text: str | None):
     else:
         return None
 
-####################### Bot logic #######################
-BOT_LOGIC_CHAPTER = None
 
+####################### BOT_UTILITES_CHAPTER #######################
+BOT_UTILITES_CHAPTER = None
+
+# Create FSM form for storing data 
+# and perform logic chains scenarios
 class Form(StatesGroup):
     chat_id = State()
     photo_ok = State()
@@ -490,30 +533,22 @@ class Form(StatesGroup):
     edit_daily_goal = State()
     statistics = State()
 
+
 form_router = Router()
 
-def text_from_nutrition_facts(
-    nutrition_facts: dict[str, str|float],
-    is_saved: bool=False,
-) -> str:
-    text = (
-        '*Here is my estimation of the nutrition facts about your photo:*\n'
-        f'🍽 Dish name: *{nutrition_facts["dish_name"]}*\n'
-        f'🧮 Total calories: *{round(nutrition_facts["calories"], 2)}* kcal\n'
-        f'⚖️ Total mass: *{round(nutrition_facts["mass"], 2)}* g\n'
-        f'🍖 Proteins mass: *{round(nutrition_facts["protein"], 2)}* g\n'
-        f'🍬 Carbonhydrates mass: *{round(nutrition_facts["carb"], 2)}* g\n'
-        f'🧈 Fats mass: *{round(nutrition_facts["fat"], 2)}* g'
-    )
-    if is_saved == True:
-        text+=(
-            '\n✅ Saved to your meals'
+def inline_keyboard_recognized(is_saved: bool=False) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    if is_saved == False:
+        builder.row(
+            InlineKeyboardButton(text='Save to my meals', callback_data='Save to my meals'),
+            InlineKeyboardButton(text='Edit nutrition facts', callback_data='Edit nutrition')  
         )
-    
-    return text.replace('.', '\.')
+    else:
+        builder.row()
+    return builder.as_markup()
 
 
-def build_inline_keyboard(is_saved: bool=False) -> InlineKeyboardMarkup:
+def inline_keyboard_in_edition(is_saved: bool=False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     if is_saved == False:
         builder.row(
@@ -537,7 +572,7 @@ def build_inline_keyboard(is_saved: bool=False) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def build_reply_keyboard() -> ReplyKeyboardMarkup:
+def reply_keyboard() -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
     builder.row(
         KeyboardButton(text='🍽 Recognize nutrition'),
@@ -548,7 +583,9 @@ def build_reply_keyboard() -> ReplyKeyboardMarkup:
 
     return builder.as_markup()
 
-    
+####################### BOT_HANDLERS_CHAPTER #######################
+BOT_HANDLERS_CHAPTER = None 
+
 @form_router.message(
     F.text.endswith('Get today\'s statistics')
 )
@@ -564,7 +601,7 @@ async def get_today_statistics(
 
     user_id = message.from_user.id
 
-    daily_calories_goal = await sql_get_latest_daily_calories_goal(
+    daily_calories_goal = await sql_get_daily_goal(
         session=session, 
         user_id=user_id
     )
@@ -671,7 +708,7 @@ async def get_today_statistics(
             f'{progresses[2]} 🧈 Oils     *{round(total_fat, 1)}*g.' 
         ),
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=build_reply_keyboard()
+        reply_markup=reply_keyboard()
     )
 
 
@@ -687,7 +724,7 @@ async def get_today_statistics(
 
 #     user_id = message.from_user.id
     
-#     daily_calories_goal = await sql_get_latest_daily_calories_goal(
+#     daily_calories_goal = await sql_get_daily_goal(
 #         session=session, 
 #         user_id=user_id
 #     )
@@ -750,7 +787,7 @@ async def get_today_statistics(
 #             'Your today\'s calories statistics:\n'
 #             f'🧮 Calories consumed / goal: {int(total_calories)} / {int(daily_calories_goal)}\n'
 #         ),
-#         reply_markup=build_reply_keyboard()
+#         reply_markup=reply_keyboard()
 #     )
 #     img_buf.close()
 #     plt.close(fig)
@@ -762,7 +799,7 @@ async def get_today_statistics(
 #     #     ),
 #     #     photo=BufferedInputFile(img, filename='daily_nutrition_plot.png'),
 #     #     parse_mode=ParseMode.MARKDOWN,
-#     #     reply_markup=build_reply_keyboard()
+#     #     reply_markup=reply_keyboard()
 #     # )
 
 
@@ -781,7 +818,7 @@ async def edit_daily_goal_request(
 
     user_id = message.from_user.id
 
-    latest_goal = await sql_get_latest_daily_calories_goal(
+    latest_goal = await sql_get_daily_goal(
         session=session, 
         user_id=user_id
     )
@@ -790,12 +827,12 @@ async def edit_daily_goal_request(
         
         await message.answer(
             f'Your daily goal setted in: {latest_goal} kcall',
-            reply_markup=build_reply_keyboard()
+            reply_markup=reply_keyboard()
         )
 
     await message.answer(
         text='Please set amount of kcall that You want to consume daily\n',
-        reply_markup=build_reply_keyboard()
+        reply_markup=reply_keyboard()
     )
 
 
@@ -812,7 +849,7 @@ async def edit_daily_goal(
     except:        
         await message.answer(
             text='Amount of kcall to set as daily goal must be a number',
-            reply_markup=build_reply_keyboard(),
+            reply_markup=reply_keyboard(),
         )
         await state.clear()
         return
@@ -821,7 +858,7 @@ async def edit_daily_goal(
 
     first_name = message.from_user.first_name
 
-    latest_goal = await sql_get_latest_daily_calories_goal(
+    latest_goal = await sql_get_daily_goal(
         session=session, 
         user_id=user_id
     )
@@ -831,7 +868,7 @@ async def edit_daily_goal(
         if daily_calories_goal == float(latest_goal):
             await message.answer(
                 f'Your daily goal setted in: {daily_calories_goal} kcall',
-                reply_markup=build_reply_keyboard()
+                reply_markup=reply_keyboard()
             )
             return
     
@@ -867,7 +904,7 @@ async def edit_daily_goal(
 
     await message.answer(
         f'Your daily goal setted in: {daily_calories_goal} kcall',
-        reply_markup=build_reply_keyboard()
+        reply_markup=reply_keyboard()
     )
     await state.clear()
         
@@ -887,10 +924,10 @@ async def welcome(
             'and I\'ll recognize nutritional facts about it'
         ),
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=build_reply_keyboard()
+        reply_markup=reply_keyboard()
     )
 
-    await check_user_exist(message=message, session=session)
+    await write_user_if_not_exist(message=message, session=session)
 
 
 @form_router.message(F.text.endswith('Recognize nutrition'))
@@ -903,7 +940,7 @@ async def recognize_nutrition(
             'and I\'ll send recognized nutritional facts to you back:'
         ),
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=build_reply_keyboard(),
+        reply_markup=reply_keyboard(),
     )
 
 
@@ -913,7 +950,7 @@ async def handle_photo(message: Message, state: FSMContext):
     await message.answer(
         "⚡️ Thank you for sending the photo! \n"
         "⚙️ It in processing, please wait your results",
-        reply_markup=build_reply_keyboard()
+        reply_markup=reply_keyboard()
     )
 
     await message.bot.send_chat_action(
@@ -933,11 +970,10 @@ async def handle_photo(message: Message, state: FSMContext):
 
     img = Image.from_bytes(photo_file.read())
 
-    request_parts = [PROMPT, img]
+    request_parts = [prompt, img]
     
     response = model.generate_content(
-        request_parts,
-        generation_config=generation_config
+        request_parts
     )
     result = response_to_dict(response)
 
@@ -948,7 +984,7 @@ async def handle_photo(message: Message, state: FSMContext):
                 '🙏 Please try once again'
             ),
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=build_reply_keyboard()
+            reply_markup=reply_keyboard()
         )
     else:
         nutrition_facts = result
@@ -965,11 +1001,23 @@ async def handle_photo(message: Message, state: FSMContext):
         await message.answer(
             text=text,
             parse_mode=ParseMode.MARKDOWN_V2,
-            reply_markup=build_inline_keyboard(),
+            reply_markup=inline_keyboard_recognized(),
         )
         await state.update_data(name=message.text)
 #TODO rewrite build_inline_keyboard to show at first step only two buttons: save and edit
 
+@form_router.callback_query(
+    F.data == 'Edit nutrition'
+)
+async def edit_data_change_inline(
+    callback_query: CallbackQuery, 
+    state: FSMContext
+):
+    await callback_query.message.edit_text(
+        text=callback_query.message.text,
+        parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=inline_keyboard_in_edition()
+    )
 
 # Edit the results 
 @form_router.callback_query(
@@ -996,7 +1044,7 @@ async def edit_data(callback_query: CallbackQuery, state: FSMContext):
                     'Please send me a *correct* value of it'
                 ),
                 parse_mode=ParseMode.MARKDOWN,
-                reply_markup=build_reply_keyboard()
+                reply_markup=reply_keyboard()
             )
 
 
@@ -1073,7 +1121,7 @@ async def apply_corrections(callback_query: CallbackQuery, state: FSMContext):
             is_saved=False
         ),
         parse_mode=ParseMode.MARKDOWN_V2,
-        reply_markup=build_inline_keyboard()
+        reply_markup=inline_keyboard_recognized()
     )
 
 
@@ -1140,12 +1188,13 @@ async def write_nutrition_to_db(
             is_saved=True
         ),
         parse_mode=ParseMode.MARKDOWN_V2,
-        reply_markup=build_inline_keyboard(is_saved=True)
+        reply_markup=inline_keyboard_recognized(is_saved=True)
     )
 
 
+#################################### BOT_SETTINGS_CHAPTER ####################################
 BOT_SETTINGS_CHAPTER = None
-#################################### Bot settings ####################################
+
 # Middleware to inject session into handlers
 class DataBaseSession(BaseMiddleware):
     def __init__(self, session_pool: async_sessionmaker):
@@ -1165,22 +1214,20 @@ class DataBaseSession(BaseMiddleware):
 
 # Set the webhook for recieving updates in your url wia HTTPS POST with JSONs
 async def on_webhook_startup(bot: Bot) -> None:
-    # If you have a self-signed SSL certificate, then you will need to send a public
-    # certificate to Telegram, for this case we'll use google cloud run service so
-    # it not required to send sertificates
-    await bot.set_webhook(
+    """does: await bot.set_webhook(
         f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}",
+    )"""
+
+    await bot.set_webhook(
+        f"{base_webhook_url}{webhook_path}",
+
     )
 
 
-async def on_startup(bot: Bot) -> None:
-    
+# Remove webhook if it setted
+async def on_pooling_startup(bot: Bot) -> None:
+    """does: await bot.delete_webhook()"""
     await bot.delete_webhook()
-
-
-# Close the engine when shutting down
-async def on_shutdown(bot: Bot):
-    await engine.dispose()
 
 
 def webhook_main() -> None:
@@ -1191,16 +1238,15 @@ def webhook_main() -> None:
 
     # Register startup hook to initialize webhook
     dp.startup.register(on_webhook_startup)
-    dp.shutdown.register(on_shutdown)
 
     dp.update.middleware(
-        DataBaseSession(session_pool=session_maker)
+        DataBaseSession(session_pool=session_pool)
     )
 
     # Initialize Bot instance with default bot properties 
     # which will be passed to all API calls
     bot = Bot(
-        token=BOT_TOKEN, 
+        token=bot_token, 
         default=DefaultBotProperties()
     )
 
@@ -1217,41 +1263,41 @@ def webhook_main() -> None:
     )
 
     # Register webhook handler on application
-    webhook_requests_handler.register(app, path=WEBHOOK_PATH)
+    webhook_requests_handler.register(app, path=webhook_path)
 
     # Mount dispatcher startup and shutdown hooks to aiohttp application
     setup_application(app, dp, bot=bot)
 
     # And finally start webserver
-    web.run_app(app, host=WEB_SERVER_HOST, port=WEB_SERVER_PORT)
+    web.run_app(app, host=web_server_host, port=web_server_port)
 
 
-async def main() -> None:
+async def pooling_main() -> None:
     # Dispatcher is a root router
     dp = Dispatcher()
 
     dp.include_router(form_router)
-    dp.startup.register(on_startup)
-    dp.shutdown.register(on_shutdown)
+    dp.startup.register(on_pooling_startup)
 
     dp.update.middleware(
-        DataBaseSession(session_pool=session_maker)
+        DataBaseSession(session_pool=session_pool)
     )
 
     # Initialize Bot instance with default bot properties 
     # which will be passed to all API calls
     bot = Bot(
-        token=BOT_TOKEN, 
+        token=bot_token, 
         default=DefaultBotProperties()
     )
 
     await dp.start_polling(bot)
 
     app = web.Application()
-    web.run_app(app, host=WEB_SERVER_HOST, port=WEB_SERVER_PORT)
+    web.run_app(app, host=web_server_host, port=web_server_port)
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-    # asyncio.run(main())
-    webhook_main()
+    if is_local_debug:
+        asyncio.run(pooling_main())
+    else:
+        webhook_main()
