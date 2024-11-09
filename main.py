@@ -39,7 +39,8 @@ from aiogram.utils.keyboard import (
     InlineKeyboardBuilder
 )
 from aiogram.client.session.aiohttp import AiohttpSession
-
+from concurrent.futures import ThreadPoolExecutor
+executor = ThreadPoolExecutor(max_workers=4)
 
 # get db credentials
 # Db Configuration
@@ -698,7 +699,6 @@ async def get_today_statistics(
 
     user_id = message.from_user.id
     
-
     daily_calories_goal = await sql_get_latest_daily_calories_goal(
         session=session, 
         user_id=user_id
@@ -739,6 +739,15 @@ async def get_today_statistics(
         text=f'your today statistics: {statistics}'
     )
 
+    # Offload the plotting function to a background thread
+    loop = asyncio.get_event_loop()
+    img_buf, fig = await loop.run_in_executor(
+        executor, 
+        lambda: today_statistic_plotter(
+            daily_calories_goal, total_calories, total_protein, total_carb, total_fat
+        )
+    )
+
     # img_buf, fig = await today_statistic_plotter(
     #     daily_calories_goal,
     #     total_calories,
@@ -747,14 +756,16 @@ async def get_today_statistics(
     #     total_fat
     # )
 
-    # await message.answer_photo(
-    #     photo=BufferedInputFile(img_buf.read(), filename='daily_nutrition_plot.png'),
-    #     caption=(
-    #         'Your today\'s calories statistics:\n'
-    #         f'🧮 Calories consumed / goal: {int(total_calories)} / {int(daily_calories_goal)}\n'
-    #     ),
-    #     reply_markup=build_reply_keyboard()
-    # )
+    await message.answer_photo(
+        photo=BufferedInputFile(img_buf.read(), filename='daily_nutrition_plot.png'),
+        caption=(
+            'Your today\'s calories statistics:\n'
+            f'🧮 Calories consumed / goal: {int(total_calories)} / {int(daily_calories_goal)}\n'
+        ),
+        reply_markup=build_reply_keyboard()
+    )
+    img_buf.close()
+    plt.close(fig)
     
     # await message.reply(
     #     text=(
@@ -765,8 +776,7 @@ async def get_today_statistics(
     #     parse_mode=ParseMode.MARKDOWN,
     #     reply_markup=build_reply_keyboard()
     # )
-    # img_buf.close()
-    # plt.close(fig)
+
 
 
 @form_router.message(
