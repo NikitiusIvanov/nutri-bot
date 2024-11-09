@@ -708,9 +708,9 @@ async def get_today_statistics(
         session=session, 
         user_id=user_id
     )
-
-    logging.debug(f'daily_calories_goal: {daily_calories_goal}')
-    logging.debug(f'daily_calories_goal: {statistics}')
+    print('finish sql_get_user_todays_statistics')
+    print(f'daily_calories_goal: {daily_calories_goal}')
+    print(f'daily_calories_goal: {statistics}')
 
     statistics = np.round(
         list(daily_calories_goal[0]) 
@@ -734,23 +734,27 @@ async def get_today_statistics(
             text='For today there is no data'
         )
         return
-
-    img_buf, fig = await today_statistic_plotter(
-        daily_calories_goal,
-        total_calories,
-        total_protein,
-        total_carb,
-        total_fat
+    
+    await message.answer(
+        text=f'your today statistics: {statistics}'
     )
 
-    await message.answer_photo(
-        photo=BufferedInputFile(img_buf.read(), filename='daily_nutrition_plot.png'),
-        caption=(
-            'Your today\'s calories statistics:\n'
-            f'🧮 Calories consumed / goal: {int(total_calories)} / {int(daily_calories_goal)}\n'
-        ),
-        reply_markup=build_reply_keyboard()
-    )
+    # img_buf, fig = await today_statistic_plotter(
+    #     daily_calories_goal,
+    #     total_calories,
+    #     total_protein,
+    #     total_carb,
+    #     total_fat
+    # )
+
+    # await message.answer_photo(
+    #     photo=BufferedInputFile(img_buf.read(), filename='daily_nutrition_plot.png'),
+    #     caption=(
+    #         'Your today\'s calories statistics:\n'
+    #         f'🧮 Calories consumed / goal: {int(total_calories)} / {int(daily_calories_goal)}\n'
+    #     ),
+    #     reply_markup=build_reply_keyboard()
+    # )
     
     # await message.reply(
     #     text=(
@@ -761,8 +765,8 @@ async def get_today_statistics(
     #     parse_mode=ParseMode.MARKDOWN,
     #     reply_markup=build_reply_keyboard()
     # )
-    img_buf.close()
-    plt.close(fig)
+    # img_buf.close()
+    # plt.close(fig)
 
 
 @form_router.message(
