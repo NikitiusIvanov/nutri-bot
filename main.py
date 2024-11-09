@@ -58,14 +58,18 @@ logging.info(f'IS_LOCAL_DEBUG: {is_local_debug}')
 
 # Bot token can be obtained via https://t.me/BotFather
 bot_token = os.getenv('BOT_TOKEN')
+
 # Your CG Run instance url
 base_webhook_url = os.getenv('BASE_WEBHOOK_URL')
-# Webserver settings
-web_server_host = "0.0.0.0"
-# Port for incoming request
-web_server_port = 8080
+
 # Path to webhook route, on which Telegram will send requests
 webhook_path = "/webhook"
+
+# Webserver settings
+web_server_host = "0.0.0.0"
+
+# Port for incoming request
+web_server_port = 8080
 
 def init_vertex_gemini(model_name: str) -> GenerativeModel | None:
     """Getting env variables for vertexai initialization
@@ -823,6 +827,8 @@ async def edit_daily_goal_request(
         user_id=user_id
     )
 
+    latest_goal = latest_goal[0][0]
+
     if latest_goal is not None:
         
         await message.answer(
@@ -845,7 +851,7 @@ async def edit_daily_goal(
     daily_calories_goal = message.text
     
     try:
-        daily_calories_goal = float(daily_calories_goal)
+        daily_calories_goal = int(float(daily_calories_goal))
     except:        
         await message.answer(
             text='Amount of kcall to set as daily goal must be a number',
@@ -863,9 +869,11 @@ async def edit_daily_goal(
         user_id=user_id
     )
 
+    latest_goal = latest_goal[0][0]
+
     if latest_goal is not None:
         
-        if daily_calories_goal == float(latest_goal):
+        if daily_calories_goal == int(float(latest_goal)):
             await message.answer(
                 f'Your daily goal setted in: {daily_calories_goal} kcall',
                 reply_markup=reply_keyboard()
