@@ -1004,7 +1004,7 @@ async def handle_photo(message: Message, state: FSMContext):
             reply_markup=inline_keyboard_recognized(),
         )
         await state.update_data(name=message.text)
-#TODO rewrite build_inline_keyboard to show at first step only two buttons: save and edit
+
 
 @form_router.callback_query(
     F.data == 'Edit nutrition'
@@ -1014,7 +1014,7 @@ async def edit_data_change_inline(
     state: FSMContext
 ):
     await callback_query.message.edit_text(
-        text=callback_query.message.text,
+        text=callback_query.message.text.replace('.', '\.'),
         parse_mode=ParseMode.MARKDOWN_V2,
         reply_markup=inline_keyboard_in_edition()
     )
