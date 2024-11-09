@@ -742,7 +742,7 @@ async def get_today_statistics(
     # Offload the plotting function to a background thread
     loop = asyncio.get_event_loop()
     img_buf, fig = await loop.run_in_executor(
-        executor, 
+        message.bot.executor, 
         lambda: today_statistic_plotter(
             daily_calories_goal, total_calories, total_protein, total_carb, total_fat
         )
@@ -1183,6 +1183,8 @@ async def on_webhook_startup(bot: Bot) -> None:
     await bot.set_webhook(
         f"{BASE_WEBHOOK_URL}{WEBHOOK_PATH}",
     )
+
+    bot['executor'] = executor
 
 
 async def on_startup(bot: Bot) -> None:
