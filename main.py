@@ -549,144 +549,6 @@ def build_reply_keyboard() -> ReplyKeyboardMarkup:
     return builder.as_markup()
 
     
-# @form_router.message(
-#     F.text.endswith('Get today\'s statistics')
-# )
-# async def get_today_statistics_p_bar(
-#     message: Message,
-#     state: FSMContext,
-#     session: AsyncSession
-# ):
-
-#     user_id = int(message.from_user.id)
-    
-#     print('start sql_get_user_todays_statistics')
-
-#     user_id = message.from_user.id
-
-#     get_user_stats_query = text(
-#         """
-#         select 
-#             SUM(calories),
-#             SUM(protein),
-#             SUM(carb),
-#             SUM(fat)
-#         from meals
-#         where 
-#             user_id = :user_id
-#             and 
-#             timestamp::date = current_date
-#         group by user_id;
-#         """
-#     )
-    
-#     daily_calories_goal = await sql_get_latest_daily_calories_goal(
-#         session=session, 
-#         user_id=user_id
-#     )
-    
-#     statistics = await session.execute(
-#         get_user_stats_query,
-#         {'user_id': user_id}
-#     )
-
-#     statistics = np.round([daily_calories_goal] + list(statistics.fetchone()), 1)
-
-#     print('my_stats: ', statistics)
-
-#     (
-#         daily_calories_goal,
-#         total_calories,
-#         total_protein,
-#         total_carb,
-#         total_fat
-#     ) = statistics
-
-#     print('query result', statistics)
-
-#     is_any_result_empty = any([x is None for x in statistics])
-
-#     if is_any_result_empty == True:
-#         await message.reply(
-#             text='For today there is no data'
-#         )
-#         return
-
-#     calories_percent = round(
-#         100 * (
-#             total_calories
-#             /
-#             daily_calories_goal
-#         )
-#     )
-
-#     # Caclulate progress
-#     progress_lenght = 20
-#     proportion_lenght = 10
-#     filled_block = '▓'
-#     empty_block = '░'
-
-#     percentage = round(
-#         min(
-#             progress_lenght, 
-#             (
-#                 100 * (
-#                     total_calories
-#                     /
-#                     daily_calories_goal
-#                 )
-#             ) 
-#             // 
-#             (
-#                 100 // progress_lenght
-#             )
-#         )
-#     )
-
-#     calories_progress = (filled_block * percentage) + ((progress_lenght - percentage) * empty_block)
-    
-#     normalize_nutrients_coefs = np.round(
-#         (
-#             100
-#             * 
-#             (
-#                 np.array([total_protein, total_carb, total_fat])
-#                 /
-#                 max(total_protein, total_carb, total_fat) 
-#             )
-#         ) // (100 // proportion_lenght)
-#     ).astype(int)
-
-#     normalize_nutrients_coefs
-
-#     progresses = []
-
-#     for nutrient, proportion in zip(
-#         [total_protein, total_carb, total_fat],
-#         normalize_nutrients_coefs
-#     ):
-
-#         progresses.append(
-#             (filled_block * proportion) + ((proportion_lenght - proportion) * empty_block)
-#         )
-
-#     print('finish preparing stats')
-    
-#     await message.reply(
-#         text=(
-#             '*Your today\'s calories statistics:*\n'
-#             f'🧮 Calories consumed / goal: *{int(total_calories)}* / *{int(daily_calories_goal)}*\n' 
-#             f'{calories_progress} *{calories_percent}*%\n\n'
-#             '*Your today\'s nutrients proportion:*\n'
-#             f'{progresses[0]} 🍖 Protein *{round(total_protein, 1)}*g.\n' 
-#             f'{progresses[1]} 🍬 Carbs   *{round(total_carb, 1)}*g.\n'
-#             f'{progresses[2]} 🧈 Oils     *{round(total_fat, 1)}*g.' 
-#         ),
-#         parse_mode=ParseMode.MARKDOWN,
-#         reply_markup=build_reply_keyboard()
-#     )
-
-
 @form_router.message(
     F.text.endswith('Get today\'s statistics')
 )
@@ -695,10 +557,13 @@ async def get_today_statistics(
     state: FSMContext,
     session: AsyncSession
 ):
+
+    user_id = int(message.from_user.id)
+    
     print('start sql_get_user_todays_statistics')
 
     user_id = message.from_user.id
-    
+
     daily_calories_goal = await sql_get_latest_daily_calories_goal(
         session=session, 
         user_id=user_id
@@ -734,48 +599,171 @@ async def get_today_statistics(
             text='For today there is no data'
         )
         return
-    
-    await message.answer(
-        text=f'your today statistics: {statistics}'
-    )
 
-    # Offload the plotting function to a background thread
-    loop = asyncio.get_event_loop()
-    img_buf, fig = await loop.run_in_executor(
-        executor, 
-        lambda: today_statistic_plotter(
-            daily_calories_goal, total_calories, total_protein, total_carb, total_fat
+    calories_percent = round(
+        100 * (
+            total_calories
+            /
+            daily_calories_goal
         )
     )
 
-    # img_buf, fig = await today_statistic_plotter(
-    #     daily_calories_goal,
-    #     total_calories,
-    #     total_protein,
-    #     total_carb,
-    #     total_fat
-    # )
+    # Caclulate progress
+    progress_lenght = 20
+    proportion_lenght = 10
+    filled_block = '▓'
+    empty_block = '░'
 
-    await message.answer_photo(
-        photo=BufferedInputFile(img_buf.read(), filename='daily_nutrition_plot.png'),
-        caption=(
-            'Your today\'s calories statistics:\n'
-            f'🧮 Calories consumed / goal: {int(total_calories)} / {int(daily_calories_goal)}\n'
+    percentage = round(
+        min(
+            progress_lenght, 
+            (
+                100 * (
+                    total_calories
+                    /
+                    daily_calories_goal
+                )
+            ) 
+            // 
+            (
+                100 // progress_lenght
+            )
+        )
+    )
+
+    calories_progress = (filled_block * percentage) + ((progress_lenght - percentage) * empty_block)
+    
+    normalize_nutrients_coefs = np.round(
+        (
+            100
+            * 
+            (
+                np.array([total_protein, total_carb, total_fat])
+                /
+                max(total_protein, total_carb, total_fat) 
+            )
+        ) // (100 // proportion_lenght)
+    ).astype(int)
+
+    normalize_nutrients_coefs
+
+    progresses = []
+
+    for nutrient, proportion in zip(
+        [total_protein, total_carb, total_fat],
+        normalize_nutrients_coefs
+    ):
+
+        progresses.append(
+            (filled_block * proportion) + ((proportion_lenght - proportion) * empty_block)
+        )
+
+    print('finish preparing stats')
+    
+    await message.reply(
+        text=(
+            '*Your today\'s calories statistics:*\n'
+            f'📊 Calories consumed / goal: *{int(total_calories)}* / *{int(daily_calories_goal)}*\n' 
+            f'{calories_progress} *{calories_percent}*%\n\n'
+            '*Your today\'s nutrients proportion:*\n'
+            f'{progresses[0]} 🍖 Protein *{round(total_protein, 1)}*g.\n' 
+            f'{progresses[1]} 🍬 Carbs   *{round(total_carb, 1)}*g.\n'
+            f'{progresses[2]} 🧈 Oils     *{round(total_fat, 1)}*g.' 
         ),
+        parse_mode=ParseMode.MARKDOWN,
         reply_markup=build_reply_keyboard()
     )
-    img_buf.close()
-    plt.close(fig)
+
+
+# @form_router.message(
+#     F.text.endswith('Get today\'s statistics')
+# )
+# async def get_today_statistics_plot(
+#     message: Message,
+#     state: FSMContext,
+#     session: AsyncSession
+# ):
+#     print('start sql_get_user_todays_statistics')
+
+#     user_id = message.from_user.id
     
-    # await message.reply(
-    #     text=(
-    #         '*Your today\'s calories statistics:*\n'
-    #         f'🧮 Calories consumed / goal: *{int(total_calories)}* / *{int(daily_calories_goal)}*\n'
-    #     ),
-    #     photo=BufferedInputFile(img, filename='daily_nutrition_plot.png'),
-    #     parse_mode=ParseMode.MARKDOWN,
-    #     reply_markup=build_reply_keyboard()
-    # )
+#     daily_calories_goal = await sql_get_latest_daily_calories_goal(
+#         session=session, 
+#         user_id=user_id
+#     )
+
+#     statistics = await sql_get_user_todays_statistics(
+#         session=session, 
+#         user_id=user_id
+#     )
+#     print('finish sql_get_user_todays_statistics')
+#     print(f'daily_calories_goal: {daily_calories_goal}')
+#     print(f'daily_calories_goal: {statistics}')
+
+#     statistics = np.round(
+#         list(daily_calories_goal[0]) 
+#         + 
+#         list(statistics[0]), 
+#         1
+#     )
+
+#     (
+#         daily_calories_goal,
+#         total_calories,
+#         total_protein,
+#         total_carb,
+#         total_fat
+#     ) = statistics
+
+#     is_any_result_empty = any([x is None for x in statistics])
+
+#     if is_any_result_empty == True:
+#         await message.reply(
+#             text='For today there is no data'
+#         )
+#         return
+    
+#     await message.answer(
+#         text=f'your today statistics: {statistics}'
+#     )
+
+#     # Offload the plotting function to a background thread
+#     loop = asyncio.get_event_loop()
+#     img_buf, fig = await loop.run_in_executor(
+#         executor, 
+#         lambda: today_statistic_plotter(
+#             daily_calories_goal, total_calories, total_protein, total_carb, total_fat
+#         )
+#     )
+
+#     # img_buf, fig = await today_statistic_plotter(
+#     #     daily_calories_goal,
+#     #     total_calories,
+#     #     total_protein,
+#     #     total_carb,
+#     #     total_fat
+#     # )
+
+#     await message.answer_photo(
+#         photo=BufferedInputFile(img_buf.read(), filename='daily_nutrition_plot.png'),
+#         caption=(
+#             'Your today\'s calories statistics:\n'
+#             f'🧮 Calories consumed / goal: {int(total_calories)} / {int(daily_calories_goal)}\n'
+#         ),
+#         reply_markup=build_reply_keyboard()
+#     )
+#     img_buf.close()
+#     plt.close(fig)
+    
+#     # await message.reply(
+#     #     text=(
+#     #         '*Your today\'s calories statistics:*\n'
+#     #         f'🧮 Calories consumed / goal: *{int(total_calories)}* / *{int(daily_calories_goal)}*\n'
+#     #     ),
+#     #     photo=BufferedInputFile(img, filename='daily_nutrition_plot.png'),
+#     #     parse_mode=ParseMode.MARKDOWN,
+#     #     reply_markup=build_reply_keyboard()
+#     # )
 
 
 
