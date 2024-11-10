@@ -6,8 +6,7 @@ This bot:
 * Has a PostgreSQL database to data processing
 
 ## 🌐 Live demo: https://t.me/nutritional_facts_bot
-
-https://github.com/NikitiusIvanov/nutri-bot/blob/main/schemes/components.drawio.png
+[Components Architecture](https://github.com/NikitiusIvanov/nutri-bot/blob/main/schemes/components.drawio.png)
 
 ## ⚙️ Functionality:
 Connects to the Telegram Bot API to receive user interactions.
