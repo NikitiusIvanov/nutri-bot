@@ -617,13 +617,18 @@ async def get_today_statistics(
     print('finish sql_get_user_todays_statistics')
     print(f'daily_calories_goal: {daily_calories_goal}')
     print(f'daily_calories_goal: {statistics}')
-
-    statistics = np.round(
-        list(daily_calories_goal[0]) 
-        + 
-        list(statistics[0]), 
-        1
-    )
+    try:
+        statistics = np.round(
+            list(daily_calories_goal[0]) 
+            + 
+            list(statistics[0]), 
+            1
+        )
+    except:
+        await message.reply(
+            text='For today there is no data'
+        )
+        return
 
     (
         daily_calories_goal,
