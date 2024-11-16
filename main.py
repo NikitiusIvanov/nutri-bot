@@ -196,7 +196,14 @@ async def sql_check_if_user_exists(
     """
 
     result = await session.execute(
-        sql.text("SELECT EXISTS (SELECT 1 FROM users WHERE user_id = :user_id)"), 
+        sql.text(
+            """
+            SELECT EXISTS (
+                SELECT 1 FROM users 
+                WHERE user_id = :user_id
+            )
+            """
+        ), 
         {'user_id': user_id}
     )
     result = result.fetchone()
@@ -204,7 +211,7 @@ async def sql_check_if_user_exists(
     return result[0]
 
 
-async def sql_write_new_user(
+async def sql_write_user(
     session: AsyncSession, 
     user_row: dict
 ):
@@ -214,7 +221,6 @@ async def sql_write_new_user(
         sql.text("""
         INSERT INTO users (
             first_name,
-            last_name,
             user_name,
             user_id,
             chat_id,
@@ -224,7 +230,6 @@ async def sql_write_new_user(
             daily_calories_goal
         ) VALUES (
             :first_name,
-            :last_name,
             :user_name,
             :user_id,
             :chat_id,
@@ -235,15 +240,14 @@ async def sql_write_new_user(
        )
         """),
         {
-            'first_name': user_row['first_name'],
-            'last_name': user_row['last_name'],
-            'user_name': user_row['user_name'],
-            'user_id': user_row['user_id'],
-            'chat_id': user_row['chat_id'],
-            'height': user_row['height'],
-            'weight': user_row['weight'],
-            'age': user_row['age'],
-            'daily_calories_goal': user_row['daily_calories_goal']
+            'first_name': user_row.get('first_name'),
+            'user_name': user_row.get('user_name'),
+            'user_id': user_row.get('user_id'),
+            'chat_id': user_row.get('chat_id'),
+            'height': user_row.get('height'),
+            'weight': user_row.get('weight'),
+            'age': user_row.get('age'),
+            'daily_calories_goal': user_row.get('daily_calories_goal')
         }
     )
 
@@ -277,13 +281,13 @@ async def sql_write_nutrition(
         )
         """),
         {
-            'user_id': meal_row['user_id'],
-            'dish_name': meal_row['dish_name'],
-            'calories': meal_row['calories'],
-            'mass': meal_row['mass'],
-            'protein': meal_row['protein'],
-            'carb': meal_row['carb'],
-            'fat': meal_row['fat']
+            'user_id': meal_row.get('user_id'),
+            'dish_name': meal_row.get('dish_name'),
+            'calories': meal_row.get('calories'),
+            'mass': meal_row.get('mass'),
+            'protein': meal_row.get('protein'),
+            'carb': meal_row.get('carb'),
+            'fat': meal_row.get('fat')
         }
     )
 
@@ -365,8 +369,6 @@ async def write_user_if_not_exist(
         
         first_name = message.from_user.first_name
 
-        last_name = message.from_user.last_name
-
         user_name = message.from_user.username
 
         user_id = message.from_user.id
@@ -377,11 +379,10 @@ async def write_user_if_not_exist(
 
         height, weight, age, daily_calories_goal = None, None, None, None
 
-        await sql_write_new_user(
+        await sql_write_user(
             session=session, 
             user_row={
                 'first_name': first_name,
-                'last_name': last_name,
                 'user_name': user_name,
                 'user_id': user_id,
                 'timestamp': timestamp,
@@ -463,7 +464,7 @@ def text_from_nutrition_facts(
     
     return text.replace('.', '\.')
 
-#TODO have to solve problem with delaying 
+#TODO need to solve problem with delaying 
 # and switch to send stats with plots
 def today_statistic_plotter(
     daily_calories_goal,
@@ -529,7 +530,6 @@ class Form(StatesGroup):
     nutrition_facts = State()
     username = State()
     first_name = State()
-    last_name = State()
     user_id = State()
     edit_request = State()
     key_to_edit = State()
@@ -796,8 +796,6 @@ async def edit_daily_goal(
     
     first_name = message.from_user.first_name
 
-    last_name = message.from_user.last_name
-
     user_name = message.from_user.username
 
     user_id = int(message.from_user.id)
@@ -808,11 +806,10 @@ async def edit_daily_goal(
 
     height, weight, age = None, None, None
 
-    await sql_write_new_user(
+    await sql_write_user(
         session=session, 
         user_row={
             'first_name': first_name,
-            'last_name': last_name,
             'user_name': user_name,
             'user_id': user_id,
             'timestamp': timestamp,
@@ -917,7 +914,6 @@ async def handle_photo(message: Message, state: FSMContext):
         await state.update_data(chat_id=message.chat.id)
         await state.update_data(username=message.chat.username)
         await state.update_data(first_name=message.from_user.first_name)
-        await state.update_data(last_name=message.from_user.last_name)
         await state.update_data(user_id=message.from_user.id)
         
         await message.answer(
@@ -1063,7 +1059,6 @@ async def write_nutrition_to_db(
     timestamp = datetime.datetime.now().astimezone().isoformat()
     username = data['username']
     first_name = data['first_name']
-    last_name = data['last_name']
     user_id = int(data['user_id'])
     chat_id = int(callback_query.message.chat.id)
     
@@ -1086,11 +1081,10 @@ async def write_nutrition_to_db(
 
         height, weight, age, daily_calories_goal = None, None, None, None
 
-        await sql_write_new_user(
+        await sql_write_user(
             session=session, 
             user_row={
                 'first_name': first_name,
-                'last_name': last_name,
                 'user_name': username,
                 'user_id': user_id,
                 'timestamp': timestamp,
