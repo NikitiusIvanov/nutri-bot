@@ -34,7 +34,9 @@ create table if not exists meals (
     user_id
         integer, 
     dish_name
-        text, 
+        text,
+    photo_file_id 
+        text,
     calories
         integer,
     mass

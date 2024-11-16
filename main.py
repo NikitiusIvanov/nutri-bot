@@ -266,7 +266,8 @@ async def sql_write_nutrition(
             mass,
             protein,
             carb,
-            fat 
+            fat,
+            photo_file_id
         ) VALUES (
             :user_id,
             :dish_name,
@@ -274,7 +275,8 @@ async def sql_write_nutrition(
             :mass,
             :protein,
             :carb,
-            :fat
+            :fat,
+            :photo_file_id
         )
         """),
         {
@@ -284,7 +286,8 @@ async def sql_write_nutrition(
             'mass': meal_row.get('mass'),
             'protein': meal_row.get('protein'),
             'carb': meal_row.get('carb'),
-            'fat': meal_row.get('fat')
+            'fat': meal_row.get('fat'),
+            'photo_file_id': meal_row.get('photo_file_id')
         }
     )
 
@@ -524,6 +527,7 @@ BOT_UTILITES_CHAPTER = None
 class Form(StatesGroup):
     chat_id = State()
     photo_ok = State()
+    photo_file_id = State()
     nutrition_ok = State()
     nutrition_facts = State()
     username = State()
@@ -915,6 +919,7 @@ async def handle_photo(message: Message, state: FSMContext):
 
         text=text_from_nutrition_facts(nutrition_facts=nutrition_facts)
         
+        await state.update_data(photo_file_id=photo_file_id)
         await state.update_data(nutrition_facts=nutrition_facts)
         await state.update_data(chat_id=message.chat.id)
         await state.update_data(username=message.chat.username)
@@ -1062,20 +1067,21 @@ async def write_nutrition_to_db(
     
     nutrition_facts = data['nutrition_facts']
     timestamp = datetime.datetime.now().astimezone().isoformat()
-    username = data['username']
-    first_name = data['first_name']
-    user_id = int(data['user_id'])
-    chat_id = int(callback_query.message.chat.id)
+    username = data.get('username')
+    first_name = data.get('first_name')
+    user_id = int(data.get('user_id'))
+    photo_file_id = data.get('photo_file_id')
     
     meal_row = {
         'timestamp': timestamp, 
-        'user_id': user_id, 
+        'user_id': user_id,
         'dish_name': nutrition_facts['dish_name'],
         'calories': int(nutrition_facts['calories']),
         'mass': int(nutrition_facts['mass']),
         'protein': float(nutrition_facts['protein']),
         'carb': float(nutrition_facts['carb']),
-        'fat': float(nutrition_facts['fat']),     
+        'fat': float(nutrition_facts['fat']), 
+        'photo_file_id': photo_file_id,
     }
 
     is_user_exist = await sql_check_if_user_exists(session=session, user_id=user_id)
@@ -1093,7 +1099,6 @@ async def write_nutrition_to_db(
                 'user_name': username,
                 'user_id': user_id,
                 'timestamp': timestamp,
-                'chat_id': chat_id,
                 'height': height,
                 'weight': weight,
                 'age': age,
