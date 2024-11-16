@@ -582,7 +582,7 @@ def reply_keyboard() -> ReplyKeyboardMarkup:
     builder = ReplyKeyboardBuilder()
     builder.row(
         KeyboardButton(text='🍽 Recognize nutrition'),
-        KeyboardButton(text='📝 Edit My daily goal'),
+        KeyboardButton(text='📝 Set or Edit My daily goal'),
         KeyboardButton(text='📊 Get today\'s statistics'),
     )
     builder.adjust(2)
@@ -732,7 +732,7 @@ async def get_today_statistics(
 
 
 @form_router.message(
-    F.text.endswith('Edit My daily goal')
+    F.text.endswith('Set or Edit My daily goal')
     |
     F.text.endswith('/set_daily_goal')
 )
