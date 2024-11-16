@@ -312,6 +312,7 @@ async def sql_get_daily_goal(
     session: AsyncSession, 
     user_id: int,
 ):
+    
     result = await session.execute(
         sql.text("""
         SELECT daily_calories_goal
@@ -606,6 +607,7 @@ async def get_today_statistics(
         session=session, 
         user_id=user_id
     )
+    daily_calories_goal = daily_calories_goal[0]
 
     statistics = await sql_get_user_todays_statistics(
         session=session, 
@@ -614,11 +616,16 @@ async def get_today_statistics(
     print('finish sql_get_user_todays_statistics')
     print(f'daily_calories_goal: {daily_calories_goal}')
     print(f'daily_calories_goal: {statistics}')
+
+    if daily_calories_goal is None:
+        await message.reply(
+            text='Please set daily calories goal'
+        )
+        return
+
     try:
         statistics = np.round(
-            list(daily_calories_goal[0]) 
-            + 
-            list(statistics[0]), 
+            list(statistics[0]),
             1
         )
     except:
@@ -628,7 +635,6 @@ async def get_today_statistics(
         return
 
     (
-        daily_calories_goal,
         total_calories,
         total_protein,
         total_carb,
