@@ -607,7 +607,15 @@ async def get_today_statistics(
         session=session, 
         user_id=user_id
     )
-    daily_calories_goal = daily_calories_goal[0]
+    daily_calories_goal = daily_calories_goal[0][0]
+    
+    if daily_calories_goal is None:
+        await message.reply(
+            text='Please set daily calories goal'
+        )
+        return
+    else:
+        daily_calories_goal = round(daily_calories_goal, 1)
 
     statistics = await sql_get_user_todays_statistics(
         session=session, 
@@ -616,12 +624,6 @@ async def get_today_statistics(
     print('finish sql_get_user_todays_statistics')
     print(f'daily_calories_goal: {daily_calories_goal}')
     print(f'daily_calories_goal: {statistics}')
-
-    if daily_calories_goal is None:
-        await message.reply(
-            text='Please set daily calories goal'
-        )
-        return
 
     try:
         statistics = np.round(
