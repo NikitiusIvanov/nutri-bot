@@ -1,6 +1,8 @@
 # 🤖 🥦 NutriBot: Telegram bot for Nutritional Analysis with Google AI
 This Telegram bot, NutriBot, leverages the Google AI model Gemini 1.5 Pro's capabilities to analyze food images and provide nutritional information to help users track calories and nutrient consumptions.
 
+![Screenrecord](https://github.com/NikitiusIvanov/nutri-bot/blob/main/gifs/start.gif)
+
 This bot:  
 * Serves with serverless GC Run, making it automatically scalable as the number of requests increases.  
 * Leverages GC Vertex with Gemini-1.5-pro-002 to apply nutrition recognition from food photos.  
